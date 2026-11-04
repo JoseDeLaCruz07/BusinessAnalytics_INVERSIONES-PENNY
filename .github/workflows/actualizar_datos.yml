@@ -1,0 +1,74 @@
+name: Actualizar datos y reentrenar modelo
+
+# Corre de lunes a viernes despues del cierre del mercado de EE.UU.
+# (21:30 UTC = 4:30pm ET en horario de verano / 5:30pm ET en horario de
+# invierno -- alcanza igual, los datos de yfinance/Finnhub llegan con el
+# cierre del dia). Tambien se puede disparar a mano desde la pestana
+# Actions de GitHub (workflow_dispatch).
+on:
+  schedule:
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ingesta de datos de mercado (yfinance + Finnhub)
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.ingestion.ingest_market_data
+
+      - name: Ingesta de texto (noticias Finnhub + StockTwits)
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.ingestion.ingest_text_data
+
+      - name: Limpieza y normalizacion
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.processing.clean_pipeline
+
+      - name: Sentimiento (FinBERT)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.models.sentiment_finbert
+
+      - name: Feature engineering
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.models.feature_engineering
+
+      - name: Reentrenar XGBoost
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.models.train_xgboost
+
+      - name: Publicar modelo actualizado en git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add models/xgboost_latest.json models/xgboost_latest.version.txt
+          if git diff --cached --quiet; then
+            echo "Sin cambios en el modelo, no se hace commit."
+          else
+            git commit -m "Actualizar modelo XGBoost automaticamente ($(date -u +%Y-%m-%d))"
+            git push
+          fi

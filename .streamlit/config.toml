@@ -1,0 +1,11 @@
+# Tema base de Streamlit -- coincide con TEMAS["light"] en app.py (el modo
+# por defecto al abrir la app; el toggle "Modo oscuro" del sidebar cambia el
+# resto vía CSS inyectado, esto solo alinea el chrome nativo de Streamlit
+# -- botones, sliders, foco de inputs -- con la misma identidad visual).
+[theme]
+base = "light"
+primaryColor = "#4f46e5"
+backgroundColor = "#f5f6fb"
+secondaryBackgroundColor = "#eef0f8"
+textColor = "#12131a"
+font = "sans serif"
