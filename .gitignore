@@ -1,4 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
 venv/
 .env
-__pycache__/
-*.pcy
+.streamlit/secrets.toml
+data/*.db
+data/*.csv
+data/*.json
+!data/.gitkeep
+*.pkl
+*.egg-info/
+.DS_Store

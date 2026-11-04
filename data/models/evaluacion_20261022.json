@@ -1,0 +1,78 @@
+{
+  "fecha": "2026-10-22",
+  "xgboost": {
+    "n_train": 194,
+    "n_test": 52,
+    "accuracy": 0.75,
+    "precision": 0.5714285714285714,
+    "recall": 0.2857142857142857,
+    "f1": 0.38095238095238093,
+    "confusion_matrix": [
+      [
+        35,
+        3
+      ],
+      [
+        10,
+        4
+      ]
+    ],
+    "feature_importance": {
+      "rsi": 0.33972349762916565,
+      "media_movil": 0.2971028983592987,
+      "volumen_relativo": 0.36317354440689087,
+      "sentimiento_agregado": 0.0
+    }
+  },
+  "finbert": {
+    "n_ejemplos": 18,
+    "accuracy": 0.7777777777777778,
+    "casos_mal_clasificados": [
+      {
+        "contenido": "The company announced a reverse stock split to avoid delisting from the exchange.",
+        "etiqueta_real": "negativo",
+        "etiqueta_predicha": "neutral",
+        "score": 0.9221864342689514
+      },
+      {
+        "contenido": "The board of directors approved a dilutive stock offering to raise emergency capital.",
+        "etiqueta_real": "negativo",
+        "etiqueta_predicha": "positivo",
+        "score": 0.6279855966567993
+      },
+      {
+        "contenido": "Shares traded flat in a quiet session ahead of the company's investor day.",
+        "etiqueta_real": "neutral",
+        "etiqueta_predicha": "negativo",
+        "score": 0.931973934173584
+      },
+      {
+        "contenido": "Trading volume was in line with the 30-day average as the stock closed unchanged.",
+        "etiqueta_real": "neutral",
+        "etiqueta_predicha": "positivo",
+        "score": 0.4862443208694458
+      }
+    ]
+  },
+  "calidad_datos": {
+    "completitud": {
+      "precios_ohlcv_total": 342,
+      "precios_ohlcv_con_nulos": 0,
+      "ratios_financieros_total": 7,
+      "ratios_sin_market_cap": 0
+    },
+    "consistencia": {
+      "precios_con_close_no_positivo": 0
+    },
+    "trazabilidad": {
+      "textos_total": 44,
+      "textos_sin_url": 0
+    },
+    "reproducibilidad": {
+      "requirements_txt_existe": true,
+      "dependencias_totales": 16,
+      "dependencias_con_version_fija": 16,
+      "ok": true
+    }
+  }
+}
