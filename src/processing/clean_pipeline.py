@@ -1,8 +1,4 @@
-"""Fase 1 - Limpieza de datos numericos (OHLCV, ratios) y de texto (noticias/reddit).
-
-Lee desde la base de datos (ya poblada por los scripts de ingesta), aplica
-limpieza y exporta versiones limpias a data/*_clean.csv. No modifica las
-tablas crudas: la limpieza es un paso de transformacion hacia feature_engineering.
+"""Fase 1 - Limpieza de OHLCV/ratios/texto desde la DB; exporta a data/*_clean.csv.
 
 Uso:
     python -m src.processing.clean_pipeline
@@ -24,6 +20,32 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 URL_RE = re.compile(r"https?://\S+")
 WHITESPACE_RE = re.compile(r"\s+")
+
+
+COLUMNAS_PRECIO = ["open", "high", "low", "close"]
+
+
+def limpiar_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
+    """Reglas de validez de precios que comparten el feature engineering, el entrenamiento, el backtest y el CSV.
+
+    - descarta filas con algun precio vacio o <= 0 (yfinance devuelve NaN en dias sin operaciones);
+    - descarta filas con high < low (vela imposible);
+    - deja un solo registro por ticker y fecha;
+    - el volumen vacio cuenta como 0.
+    No recorta outliers: en penny stocks un +50% real es justo lo que el modelo tiene que aprender.
+    Los saltos falsos por splits se corrigen en la ingesta (precios ajustados), no aqui.
+    """
+    if df.empty:
+        return df
+    precios = [c for c in COLUMNAS_PRECIO if c in df.columns]
+    df = df.dropna(subset=precios)
+    df = df[(df[precios] > 0).all(axis=1)]
+    if {"high", "low"} <= set(df.columns):
+        df = df[df["high"] >= df["low"]]
+    if "volumen" in df.columns:
+        df = df.assign(volumen=df["volumen"].fillna(0))
+    clave = ["symbol" if "symbol" in df.columns else "ticker_id", "fecha"]
+    return df.sort_values(clave).drop_duplicates(subset=clave, keep="last").reset_index(drop=True)
 
 
 def clean_ohlcv(session) -> pd.DataFrame:
@@ -52,9 +74,7 @@ def clean_ohlcv(session) -> pd.DataFrame:
 
     df["fecha"] = pd.to_datetime(df["fecha"])
     before = len(df)
-    df = df.dropna(subset=["open", "high", "low", "close"])
-    df = df[(df[["open", "high", "low", "close"]] > 0).all(axis=1)]
-    df["volumen"] = df["volumen"].fillna(0)
+    df = limpiar_ohlcv(df)
 
     # Outliers de precio: recorte por grupo (symbol) usando IQR sobre 'close'.
     def clip_outliers(group: pd.DataFrame) -> pd.DataFrame:
@@ -64,8 +84,8 @@ def clean_ohlcv(session) -> pd.DataFrame:
         group["close"] = group["close"].clip(lower=max(lower, 0), upper=upper if iqr > 0 else group["close"].max())
         return group
 
+    # Solo para el CSV de exploracion: el modelo usa limpiar_ohlcv() sin este recorte.
     df = df.groupby("symbol", group_keys=False)[df.columns].apply(clip_outliers)
-    df = df.sort_values(["symbol", "fecha"]).drop_duplicates(subset=["symbol", "fecha"])
 
     logger.info("OHLCV: %d filas crudas -> %d filas limpias", before, len(df))
     return df
