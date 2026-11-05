@@ -1,0 +1,199 @@
+[
+  {
+    "ticker": "RETO",
+    "modelo_llm": "gemini-flash-lite-latest",
+    "segundos": 37.4,
+    "caracteres_prompt": 4185,
+    "senal_regla": "monitorear",
+    "puntaje": 0.68,
+    "n_noticias": 5,
+    "n_stocktwits": 8,
+    "n_filings": 0,
+    "salida": {
+      "resumen": "ReTo Eco-Solutions presenta un puntaje de modelo de 0.68 superior a la tasa base, impulsado por movimientos recientes y alta volatilidad, aunque el AUC modesto de 0.602 sugiere precaucion. El indicador RSI elevado en 81.45 refleja condiciones de sobrecompra extrema junto con el freno de volatilidad activado. Destaca la noticia de consolidacion de acciones de ocho a uno que comienza a cotizar en noviembre.",
+      "a_favor": [
+        "Puntaje del modelo de 0.68 que supera la tasa base de 0.187.",
+        "Aporte positivo de variables como el rango de 5 dias y el volumen.",
+        "Anuncio de consolidacion de acciones aprobado por la directiva."
+      ],
+      "riesgos": [
+        "RSI extremadamente alto de 81.45 indicando sobrecompra.",
+        "Alta volatilidad diaria de 0.6215 y un rango proyectado muy amplio.",
+        "Mensajes en foros advierten sobre riesgo de exclusion de bolsa y caidas."
+      ],
+      "vigilar": [
+        "El comportamiento post-consolidacion de acciones a partir de noviembre.",
+        "La evolucion del indicador RSI para posibles correcciones.",
+        "Niveles de volumen relativo y soporte tecnico."
+      ],
+      "confianza": "baja",
+      "accion_sugerida": "esperar confirmacion",
+      "accion_corregida": true,
+      "accion_propuesta_ia": "vigilar de cerca",
+      "justificacion_accion": "Ajustado por la regla fija: la IA propuso \"vigilar de cerca\", pero con freno por volatilidad extrema lo maximo es \"esperar confirmacion\". Razon de la IA: Se sugiere vigilar de cerca debido a la alta volatilidad, el freno activado y la consolidacion de acciones en curso.",
+      "alternativas": [
+        "Esperar a que el RSI se normalice tras la consolidacion de acciones.",
+        "Monitorear nuevos filings de la SEC para confirmar cambios estructurales.",
+        "Buscar activos del sector construction con menor volatilidad diaria."
+      ],
+      "noticias_clave": [
+        {
+          "id": "N-1",
+          "fecha": "2026-10-29",
+          "texto": "ReTo Eco-Solutions, Inc. Announces Share Consolidation. ReTo Eco-Solutions, Inc. (Nasdaq: RETO) (\"ReTo\" or the \"Company\") today announced that its board of directors approved a combination of its Class A shares, no par value (the \"Class A Shares\"), on an eight-to-one basis (the \"Share Combination\")…",
+          "url": "https://finnhub.io/api/news?id=8616559189ceb1de2ace12056c6b0e4c8f9dab35df63febd24ad1e4d8860bb99"
+        },
+        {
+          "id": "N-2",
+          "fecha": "2026-10-29",
+          "texto": "ReTo Eco-Solutions Approves 8-1 Share Combination. Begins Trading Post Combination On Nov. 2, 2026",
+          "url": "https://finnhub.io/api/news?id=c050d38b619bbff28747d3e91d34f4823e70a90ca4dbb33a4f60b6286725091f"
+        },
+        {
+          "id": "ST-3",
+          "fecha": "2026-10-30",
+          "texto": "$RETO We need some good news from management, otherwise we’ll be delisted soon.",
+          "url": "https://stocktwits.com/symbol/RETO/message/667815468"
+        }
+      ],
+      "citas_inexistentes": []
+    },
+    "validacion": {
+      "cifras_no_respaldadas": [],
+      "contradicciones": [],
+      "ok": true
+    },
+    "prompt": "Hechos del ticker (JSON):\n{\"ticker\": \"RETO\", \"empresa\": \"ReTo Eco-Solutions Inc\", \"sector\": \"Construction\", \"ultimo_cierre\": 4.4536, \"fecha_ultimo_cierre\": \"2026-10-30\", \"objetivo_del_modelo\": \"subir mas de 5% en 3 dias de trading\", \"senal\": \"monitorear\", \"freno_volatilidad\": true, \"puntaje_modelo\": 0.68, \"puesto_entre_tickers\": \"1 de 18\", \"tasa_base\": 0.187, \"auc\": 0.602, \"mejora_top_10pct\": 1.39, \"explicacion_del_puntaje\": [{\"feature\": \"rango_5d\", \"valor\": 0.1056, \"aporte\": 0.251}, {\"feature\": \"vol_20d\", \"valor\": 1.3826, \"aporte\": 0.234}, {\"feature\": \"precio_vs_sma\", \"valor\": 2.7251, \"aporte\": 0.142}, {\"feature\": \"rsi\", \"valor\": 81.4546, \"aporte\": 0.077}, {\"feature\": \"vol_10d\", \"valor\": 1.9498, \"aporte\": 0.033}, {\"feature\": \"volumen_relativo\", \"valor\": 0.0358, \"aporte\": 0.006}, {\"feature\": \"sentimiento_agregado\", \"valor\": 0.1367, \"aporte\": 0.003}], \"rango_precio_1_mes_80pct\": [0.1157, 171.3815], \"volatilidad_diaria\": 0.6215, \"catalizadores_sec_30d\": {}, \"ultimos_filings_sec\": [], \"sentimiento_noticias_30d\": {\"mensajes\": 5, \"positivos\": 2, \"negativos\": 0, \"neutrales\": 3, \"promedio_firmado\": 0.339}, \"sentimiento_stocktwits_30d\": {\"mensajes\": 316, \"positivos\": 16, \"negativos\": 18, \"neutrales\": 282, \"promedio_firmado\": -0.012}, \"noticias\": [{\"id\": \"N-1\", \"fecha\": \"2026-10-29\", \"texto\": \"ReTo Eco-Solutions, Inc. Announces Share Consolidation. ReTo Eco-Solutions, Inc. (Nasdaq: RETO) (\\\"ReTo\\\" or the \\\"Company\\\") today announced that its board of directors approved a combination of its Class A shares, no par value (the \\\"Class A Shares\\\"), on an eight-to-one basis (the \\\"Share Combination\\\")…\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"N-2\", \"fecha\": \"2026-10-29\", \"texto\": \"ReTo Eco-Solutions Approves 8-1 Share Combination. Begins Trading Post Combination On Nov. 2, 2026\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"N-3\", \"fecha\": \"2026-10-26\", \"texto\": \"12 Materials Stocks Moving In Monday's After-Market Session. Gainers Apex Critical Metals (NASDAQ:APXC) stock increased by 24.9% to $6.56 during Monday&#39;s after-market session. Paramount Gold Nevada (AMEX:PZG) shares moved upwards by 12.54% to $1.05. The company&#39;s market\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"N-4\", \"fecha\": \"2026-10-05\", \"texto\": \"Discover the top movers in Monday's pre-market session.. Discover the top movers in Monday's pre-market session and stay informed about market dynamics.\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"N-5\", \"fecha\": \"2026-10-05\", \"texto\": \"Why PTC Shares Are Trading Higher By Around 35%; Here Are 20 Stocks Moving Premarket. PTC jumped 34.7% after Schneider Electric offered $22.6B; Columbus Acquisition soared 657.5%, while Zeta Network Group fell 23.3% premarket.\", \"sentimiento_finbert\": \"positivo\"}], \"mensajes_stocktwits\": [{\"id\": \"ST-1\", \"fecha\": \"2026-11-03\", \"texto\": \"Treasure Tuesday Watchlist - Former Supernovas $WFF $RETO $JAGX $SMX $AIOK\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"ST-2\", \"fecha\": \"2026-11-02\", \"texto\": \"This man is calling you BTOC for a 500% run next! Looks like he might be right, Loads of bulls moving to BTOC now! The next low float ticker to squeeze north 🚀 Look BTOC starting to run &lt;- $RETO $MYPS $KUST ™™\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"ST-3\", \"fecha\": \"2026-10-30\", \"texto\": \"$RETO We need some good news from management, otherwise we’ll be delisted soon.\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"ST-4\", \"fecha\": \"2026-10-29\", \"texto\": \"$RETO Down to .6 today, you could’ve...\", \"sentimiento_finbert\": \"negativo\"}, {\"id\": \"ST-5\", \"fecha\": \"2026-10-29\", \"texto\": \"$RETO lol its will go down to .50 then ill cover my short then short it agian after RS LOL RISE AND REPEAT\", \"sentimiento_finbert\": \"negativo\"}, {\"id\": \"ST-6\", \"fecha\": \"2026-10-28\", \"texto\": \"$RETO Down to .75 after I alerted, you could’ve…\", \"sentimiento_finbert\": \"negativo\"}, {\"id\": \"ST-7\", \"fecha\": \"2026-10-27\", \"texto\": \"$RETO if keep .80 zone like yesterday, we can see good move, need show short interest new information\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"ST-8\", \"fecha\": \"2026-10-20\", \"texto\": \"$RETO good start for week,let’s see can we keep green today\", \"sentimiento_finbert\": \"positivo\"}]}"
+  },
+  {
+    "ticker": "PDSB",
+    "modelo_llm": "gemini-flash-lite-latest",
+    "segundos": 3.0,
+    "caracteres_prompt": 6785,
+    "senal_regla": "monitorear",
+    "puntaje": 0.645,
+    "n_noticias": 10,
+    "n_stocktwits": 8,
+    "n_filings": 4,
+    "salida": {
+      "resumen": "PDS Biotechnology Corp muestra un puntaje de modelo de 0.645 frente a una tasa base de 0.187, respaldado por un sentimiento de noticias positivo y analistas alcistas. Sin embargo, se debe operar con cautela debido a la alta volatilidad diaria del 20.06 por ciento y un filing SEC de oferta de acciones que implica riesgo de dilucion. La senal actual es de monitoreo con una confiabilidad media.",
+      "a_favor": [
+        "Reiteracion de calificacion de compra y precio objetivo de $4 por parte de B. Riley Securities.",
+        "Avance en planes clinicos hacia el ensayo de Fase III para PDS0301 en cancer colorrectal metastasico.",
+        "Sentimiento de noticias predominantemente positivo con un promedio firmado de 0.417."
+      ],
+      "riesgos": [
+        "Alta volatilidad diaria del 20.06 por ciento, propia de una penny stock.",
+        "Registro de un formulario S-3 ante la SEC que indica una posible oferta de acciones y riesgo de dilucion.",
+        "Bajo AUC del modelo (0.602), lo que indica una capacidad predictiva modesta."
+      ],
+      "vigilar": [
+        "Evolucion del volumen de negociacion y la volatilidad a corto plazo.",
+        "Nuevos comunicados oficiales de la SEC sobre la oferta de acciones u otros eventos corporativos.",
+        "Desarrollos adicionales en el ensayo clinico de Fase III para PDS0301."
+      ],
+      "confianza": "media",
+      "accion_sugerida": "vigilar de cerca",
+      "accion_corregida": false,
+      "accion_propuesta_ia": "vigilar de cerca",
+      "justificacion_accion": "La senal permite monitorear la accion y existen catalizadores fundamentales interesantes, pero la alta volatilidad y el riesgo de dilucion exigen un seguimiento estricto sin prisa por comprar.",
+      "alternativas": [
+        "Esperar la confirmacion de la estabilizacion del precio tras la reciente volatilidad.",
+        "Monitorear empresas de biotecnologia de mayor capitalizacion con menor riesgo de dilucion a corto plazo."
+      ],
+      "noticias_clave": [
+        {
+          "id": "N-1",
+          "fecha": "2026-10-29",
+          "texto": "B. Riley Securities Reiterates Buy on PDS Biotechnology, Raises Price Target to $4. B. Riley Securities analyst Mayank Mamtani reiterates PDS Biotechnology (NASDAQ:PDSB) with a Buy and raises the price target from $3 to $4.",
+          "url": "https://finnhub.io/api/news?id=a778566d00c3e65a6ee0e930e7385efd22b7786f41e6c4695e24c3540fffd876"
+        },
+        {
+          "id": "N-7",
+          "fecha": "2026-10-16",
+          "texto": "PDS Biotechnology Targets Phase III Trial for PDS0301 in Metastatic Colorectal Cancer. PDS Biotechnology (NASDAQ:PDSB) outlined plans to advance its investigational immunocytokine PDS0301 into a Phase III study for heavily pretreated metastatic colorectal cancer with liver metastases, following dis…",
+          "url": "https://finnhub.io/api/news?id=6cdf4bb4cfb0ab0c30a95ba99b686ef0c9c3dd04ef089a8767cd9e443dfde76a"
+        },
+        {
+          "id": "SEC-3",
+          "fecha": "2026-10-14",
+          "texto": "Oferta de acciones (posible dilucion)",
+          "url": "https://www.sec.gov/Archives/edgar/data/1472091/000114036126039595/ny20083600x1_s3.htm"
+        }
+      ],
+      "citas_inexistentes": []
+    },
+    "validacion": {
+      "cifras_no_respaldadas": [],
+      "contradicciones": [],
+      "ok": true
+    },
+    "prompt": "Hechos del ticker (JSON):\n{\"ticker\": \"PDSB\", \"empresa\": \"PDS Biotechnology Corp\", \"sector\": \"Biotechnology\", \"ultimo_cierre\": 1.37, \"fecha_ultimo_cierre\": \"2026-11-02\", \"objetivo_del_modelo\": \"subir mas de 5% en 3 dias de trading\", \"senal\": \"monitorear\", \"freno_volatilidad\": false, \"puntaje_modelo\": 0.645, \"puesto_entre_tickers\": \"2 de 18\", \"tasa_base\": 0.187, \"auc\": 0.602, \"mejora_top_10pct\": 1.39, \"explicacion_del_puntaje\": [{\"feature\": \"rango_5d\", \"valor\": 0.1752, \"aporte\": 0.338}, {\"feature\": \"vol_20d\", \"valor\": 0.1457, \"aporte\": 0.325}, {\"feature\": \"rsi\", \"valor\": 57.6709, \"aporte\": -0.094}, {\"feature\": \"volumen_relativo\", \"valor\": 0.4482, \"aporte\": -0.085}, {\"feature\": \"precio_vs_sma\", \"valor\": 0.0774, \"aporte\": 0.064}, {\"feature\": \"vol_10d\", \"valor\": 0.1318, \"aporte\": 0.038}, {\"feature\": \"sentimiento_agregado\", \"valor\": 0.0273, \"aporte\": 0.002}], \"rango_precio_1_mes_80pct\": [0.4218, 4.45], \"volatilidad_diaria\": 0.2006, \"catalizadores_sec_30d\": {\"Otros eventos (neutral)\": 2, \"Directivos (neutral)\": 1, \"Dilucion (negativo)\": 1}, \"ultimos_filings_sec\": [{\"id\": \"SEC-1\", \"fecha\": \"2026-10-20\", \"formulario\": \"8-K\", \"detalle\": \"Otros eventos\"}, {\"id\": \"SEC-2\", \"fecha\": \"2026-10-20\", \"formulario\": \"8-K\", \"detalle\": \"Cambio de directivos / Otros eventos\"}, {\"id\": \"SEC-3\", \"fecha\": \"2026-10-14\", \"formulario\": \"S-3\", \"detalle\": \"Oferta de acciones (posible dilucion)\"}, {\"id\": \"SEC-4\", \"fecha\": \"2026-10-06\", \"formulario\": \"8-K\", \"detalle\": \"Otros eventos\"}], \"sentimiento_noticias_30d\": {\"mensajes\": 18, \"positivos\": 9, \"negativos\": 0, \"neutrales\": 9, \"promedio_firmado\": 0.417}, \"sentimiento_stocktwits_30d\": {\"mensajes\": 2056, \"positivos\": 274, \"negativos\": 157, \"neutrales\": 1625, \"promedio_firmado\": 0.04}, \"noticias\": [{\"id\": \"N-1\", \"fecha\": \"2026-10-29\", \"texto\": \"B. Riley Securities Reiterates Buy on PDS Biotechnology, Raises Price Target to $4. B. Riley Securities analyst Mayank Mamtani reiterates PDS Biotechnology (NASDAQ:PDSB) with a Buy and raises the price target from $3 to $4.\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"N-2\", \"fecha\": \"2026-10-27\", \"texto\": \"12 Health Care Stocks Moving In Tuesday's Intraday Session. Gainers Kiniksa Pharmaceuticals (NASDAQ:KNSA) shares rose 23.1% to $89.86 during Tuesday&#39;s regular session. The market value of their outstanding shares is at $5.6 billion. As per the press release, Q3 earnings\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"N-3\", \"fecha\": \"2026-10-21\", \"texto\": \"Top US Stock Movers: Today's Gainers and Losers. Today's US session top movers include SDEV up 62.64%, SHFS up 59.07%, and CJMB down 36.36%, with AHT and AMOD among gainers on company news.\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"N-4\", \"fecha\": \"2026-10-21\", \"texto\": \"12 Health Care Stocks Moving In Wednesday's Intraday Session. Gainers Pomdoctor (NASDAQ:POM) stock moved upwards by 115.1% to $1.43 during Wednesday&#39;s regular session. The market value of their outstanding shares is at $4.9 million. Stablecoin Development (AMEX:SDEV) stock\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"N-5\", \"fecha\": \"2026-10-20\", \"texto\": \"PDS Biotechnology Appoints Three Accomplished Pharma Industry Executives to Board of Directors. John Dawson CBE, Deborah Ramsdell and Bruce Wendel bring corporate development, commercialization, and regulatory experience to the Company as it advances PDS0301 toward Phase 3 trial in Metastatic Color…\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"N-6\", \"fecha\": \"2026-10-17\", \"texto\": \"PDS Biotechnology Corporation (PDSB) Discusses PDS-0301 Immunocytokine and Its Role in Treating Metastatic Colorectal Cancer - Slideshow. 2026-10-17. The following slide deck was published by PDS Biotechnology Corporation in conjunction with this event.\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"N-7\", \"fecha\": \"2026-10-16\", \"texto\": \"PDS Biotechnology Targets Phase III Trial for PDS0301 in Metastatic Colorectal Cancer. PDS Biotechnology (NASDAQ:PDSB) outlined plans to advance its investigational immunocytokine PDS0301 into a Phase III study for heavily pretreated metastatic colorectal cancer with liver metastases, following dis…\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"N-8\", \"fecha\": \"2026-10-14\", \"texto\": \"PDS Biotechnology (PDSB) Upgraded to Buy: What Does It Mean for the Stock?. PDS Biotechnology (PDSB) has been upgraded to a Zacks Rank #2 (Buy), reflecting growing optimism about the company's earnings prospects. This might drive the stock higher in the near term.\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"N-9\", \"fecha\": \"2026-10-09\", \"texto\": \"These stocks are moving in today's session. Keep an eye on the top gainers and losers in Friday's session, as they reflect the most notable price movements.\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"N-10\", \"fecha\": \"2026-10-09\", \"texto\": \"Let's have a look at the top gainers and losers in the middle of the day of today's session.. Wondering how the US markets performed in the middle of the day on Friday? Discover the movers and shakers of today's session in our comprehensive analysis.\", \"sentimiento_finbert\": \"neutral\"}], \"mensajes_stocktwits\": [{\"id\": \"ST-1\", \"fecha\": \"2026-11-03\", \"texto\": \"$PDSB there will not be a lot of these great buying opportunities in the near future would be my guess thank you Dr PSS\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"ST-2\", \"fecha\": \"2026-11-03\", \"texto\": \"$PDSB it’s really not down that much\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"ST-3\", \"fecha\": \"2026-11-02\", \"texto\": \"$PDSB snagged more on this little dip.👌🏼\", \"sentimiento_finbert\": \"negativo\"}, {\"id\": \"ST-4\", \"fecha\": \"2026-11-02\", \"texto\": \"$PDSB snagged more on this little dip\", \"sentimiento_finbert\": \"negativo\"}, {\"id\": \"ST-5\", \"fecha\": \"2026-11-02\", \"texto\": \"$PDSB Brutal day for the entire market. Not worried one bit. Held up pretty well.\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"ST-6\", \"fecha\": \"2026-11-02\", \"texto\": \"$PDSB Oct 14th PDS Biotechnology (PDSB) could be a solid choice for investors given its recent upgrade to a Zacks Rank #2 (Buy). An upward trend in earnings estimates -- one of the most powerful forces impacting stock prices -- has triggered this rating change.\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"ST-7\", \"fecha\": \"2026-11-02\", \"texto\": \"$PDSB PDSB surged from $0.70 to $1.79, corrected to $0.90, then rebounded toward $1.70, suggesting a potentially bullish consolidation. Technical Indicators: * Daily RSI: 60 | Weekly RSI: 64 * MACD: Positive * Price above 20-day SMA ($1.25) * Strong volume: 78.6M shares on Oct. 5 Key Resistance: $1…\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"ST-8\", \"fecha\": \"2026-11-02\", \"texto\": \"$PDSB Market uncertainty a day before midterms is normal. Add here. We rip faces off the rest of the week.\", \"sentimiento_finbert\": \"negativo\"}]}"
+  },
+  {
+    "ticker": "ABUS",
+    "modelo_llm": "gemini-flash-lite-latest",
+    "segundos": 4.4,
+    "caracteres_prompt": 5039,
+    "senal_regla": "sin senal",
+    "puntaje": 0.386,
+    "n_noticias": 4,
+    "n_stocktwits": 8,
+    "n_filings": 4,
+    "salida": {
+      "resumen": "Arbutus Biopharma presenta un puntaje de modelo bajo frente a su tasa base, sin senal de compra actual. Aunque la FDA levanto la suspension clinica para AB-101, la accion cotiza debil por debajo de sus medias moviles y muestra alta volatilidad. El analisis tecnico y los datos sugieren cautela, ubicando la accion en el puesto 17 de 18.",
+      "a_favor": [
+        "La FDA levanto la suspension clinica del farmaco AB-101 para hepatitis B segun filings y noticias.",
+        "Cuenta con un acuerdo y recursos importantes derivados del acuerdo con Moderna y recompra de acciones.",
+        "El RSI muestra niveles bajos cercanos a sobreventa, lo que podria generar rebotes tecnicos puntuales."
+      ],
+      "riesgos": [
+        "El puntaje del modelo es inferior a la tasa base y la senal es neutra, mostrando baja probabilidad de subida a corto plazo.",
+        "Cotiza por debajo de su SMA de 50 y 200 dias reflejando una tendencia bajista de fondo.",
+        "Alta volatilidad propia del sector biotecnologico y de una penny stock con riesgo de iliquidez."
+      ],
+      "vigilar": [
+        "El comportamiento del precio alrededor del soporte de 4.0 y el rango estimado a un mes entre 3.48 y 4.58.",
+        "Nuevos anuncios regulatorios o avances clinicos sobre el programa AB-101.",
+        "El volumen de negociacion diario para confirmar si hay interes real del mercado."
+      ],
+      "confianza": "media",
+      "accion_sugerida": "esperar confirmacion",
+      "accion_corregida": false,
+      "accion_propuesta_ia": "esperar confirmacion",
+      "justificacion_accion": "El modelo no muestra senal favorable y la tendencia tecnica es debil, por lo que se debe esperar a que el precio supere resistencias clave antes de actuar.",
+      "alternativas": [
+        "Esperar a que la accion rompa de manera sostenible la resistencia tecnica del rango de 20 dias.",
+        "Monitorear la empresa desde la barrera hasta observar mayor claridad en los ensayos clinicos de fase.",
+        "Considerar activos de biotecnologia con menor volatilidad y mayor capitalizacion de mercado."
+      ],
+      "noticias_clave": [
+        {
+          "id": "N-2",
+          "fecha": "2026-10-22",
+          "texto": "FDA Lifts Three-Year Freeze On Arbutus Biopharma's Hepatitis B Study. The FDA lifts its 3-year clinical hold on Arbutus Biopharma&#39;s AB-101 hepatitis B drug candidate, clearing US clinical trials.",
+          "url": "https://finnhub.io/api/news?id=1e3c580f94aefafafded86221bf82263e30199b37937de614f32366e989c19b2"
+        },
+        {
+          "id": "N-4",
+          "fecha": "2026-10-08",
+          "texto": "Arbutus Biopharma: $230M Buyback And Moderna Cash De-Risk The Path To A Potential HBV Cure. Arbutus Biopharma is a Buy, leveraging a $179.1M Moderna settlement and a 46M share buyback to enhance per-share value. Click for more on ABUS stock.",
+          "url": "https://finnhub.io/api/news?id=87052ab4e82e17793569df5fa952476b610d5d71c7e5d004e330953ef7a1884e"
+        },
+        {
+          "id": "SEC-2",
+          "fecha": "2026-10-22",
+          "texto": "Otros eventos",
+          "url": "https://www.sec.gov/Archives/edgar/data/1447028/000117184326006753/f8k_102126.htm"
+        }
+      ],
+      "citas_inexistentes": []
+    },
+    "validacion": {
+      "cifras_no_respaldadas": [],
+      "contradicciones": [],
+      "ok": true
+    },
+    "prompt": "Hechos del ticker (JSON):\n{\"ticker\": \"ABUS\", \"empresa\": \"Arbutus Biopharma Corp\", \"sector\": \"Biotechnology\", \"ultimo_cierre\": 4.0, \"fecha_ultimo_cierre\": \"2026-11-02\", \"objetivo_del_modelo\": \"subir mas de 5% en 3 dias de trading\", \"senal\": \"sin senal\", \"freno_volatilidad\": false, \"puntaje_modelo\": 0.386, \"puesto_entre_tickers\": \"17 de 18\", \"tasa_base\": 0.187, \"auc\": 0.602, \"mejora_top_10pct\": 1.39, \"explicacion_del_puntaje\": [{\"feature\": \"vol_20d\", \"valor\": 0.0228, \"aporte\": -0.263}, {\"feature\": \"sentimiento_agregado\", \"valor\": 0.2352, \"aporte\": -0.227}, {\"feature\": \"volumen_relativo\", \"valor\": 0.9067, \"aporte\": 0.049}, {\"feature\": \"precio_vs_sma\", \"valor\": -0.0526, \"aporte\": -0.042}, {\"feature\": \"rsi\", \"valor\": 32.3253, \"aporte\": 0.032}, {\"feature\": \"rango_5d\", \"valor\": 0.0403, \"aporte\": -0.03}, {\"feature\": \"vol_10d\", \"valor\": 0.0233, \"aporte\": 0.007}], \"rango_precio_1_mes_80pct\": [3.4879, 4.5873], \"volatilidad_diaria\": 0.0233, \"catalizadores_sec_30d\": {\"Participacion (neutral)\": 3, \"Otros eventos (neutral)\": 1}, \"ultimos_filings_sec\": [{\"id\": \"SEC-1\", \"fecha\": \"2026-10-27\", \"formulario\": \"SCHEDULE 13G/A\", \"detalle\": \"Participacion accionaria mayor al 5%\"}, {\"id\": \"SEC-2\", \"fecha\": \"2026-10-22\", \"formulario\": \"8-K\", \"detalle\": \"Otros eventos\"}, {\"id\": \"SEC-3\", \"fecha\": \"2026-10-07\", \"formulario\": \"SCHEDULE 13G/A\", \"detalle\": \"Participacion accionaria mayor al 5%\"}, {\"id\": \"SEC-4\", \"fecha\": \"2026-10-06\", \"formulario\": \"SCHEDULE 13D/A\", \"detalle\": \"Participacion accionaria mayor al 5%\"}], \"sentimiento_noticias_30d\": {\"mensajes\": 4, \"positivos\": 2, \"negativos\": 1, \"neutrales\": 1, \"promedio_firmado\": 0.175}, \"sentimiento_stocktwits_30d\": {\"mensajes\": 221, \"positivos\": 18, \"negativos\": 36, \"neutrales\": 167, \"promedio_firmado\": -0.068}, \"noticias\": [{\"id\": \"N-1\", \"fecha\": \"2026-10-22\", \"texto\": \"Arbutus Announces FDA Clinical Hold is Lifted on IND Application for AB-101, an Oral PD-L1 Inhibitor. WARMINSTER, Pa., Oct. 22, 2026 (GLOBE NEWSWIRE) -- Arbutus Biopharma Corporation (Nasdaq: ABUS) (“Arbutus” or the “Company”), a clinical-stage biopharmaceutical company focused on infectious diseas…\", \"sentimiento_finbert\": \"negativo\"}, {\"id\": \"N-2\", \"fecha\": \"2026-10-22\", \"texto\": \"FDA Lifts Three-Year Freeze On Arbutus Biopharma's Hepatitis B Study. The FDA lifts its 3-year clinical hold on Arbutus Biopharma&#39;s AB-101 hepatitis B drug candidate, clearing US clinical trials.\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"N-3\", \"fecha\": \"2026-10-22\", \"texto\": \"Arbutus Biopharma Says FDA Lifts Clinical Hold On AB-101 IND, Company May Now Engage In Additional Clinical Development For AB-101 In US. Arbutus Biopharma Corporation (NASDAQ:ABUS) (&#34;Arbutus&#34; or the &#34;Company&#34;), a clinical-stage biopharmaceutical company focused on infectious diseas…\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"N-4\", \"fecha\": \"2026-10-08\", \"texto\": \"Arbutus Biopharma: $230M Buyback And Moderna Cash De-Risk The Path To A Potential HBV Cure. Arbutus Biopharma is a Buy, leveraging a $179.1M Moderna settlement and a 46M share buyback to enhance per-share value. Click for more on ABUS stock.\", \"sentimiento_finbert\": \"positivo\"}], \"mensajes_stocktwits\": [{\"id\": \"ST-1\", \"fecha\": \"2026-11-03\", \"texto\": \"$ABUS The CEO is destroying the shareholders.\", \"sentimiento_finbert\": \"negativo\"}, {\"id\": \"ST-2\", \"fecha\": \"2026-11-02\", \"texto\": \"$ABUS Why is it tanking???\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"ST-3\", \"fecha\": \"2026-11-02\", \"texto\": \"$ABUS We all got bamboozled so bad. Invest in crime and we would be up 1000% lol circus act\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"ST-4\", \"fecha\": \"2026-11-02\", \"texto\": \"$ABUS IMHO - us retail have to be extra care. I hope that I am wrong, but the (court hearing) event from this week might give give ABUS a temporary boost, but I cannot see it holding. I think it will remain in the low to mid 4&#39;s most of the time for the remainder of 2026. Could reach the high 5…\", \"sentimiento_finbert\": \"neutral\"}, {\"id\": \"ST-5\", \"fecha\": \"2026-11-01\", \"texto\": \"$ABUS closed the week at $4.21 (+0.2% w/w, -1.6% Friday), below the 50-day SMA ($4.71) and below the 200-day ($4.50). RSI14 39.9. Support $4.05, resistance $4.80 (20-day range, bottom). Broad market sell-off on Friday. New hub updated: https://www.merlintrader.com/arbutus-biopharma-abus-stock-hub/\", \"sentimiento_finbert\": \"negativo\"}, {\"id\": \"ST-6\", \"fecha\": \"2026-10-30\", \"texto\": \"$ABUS a re-run of yesterday- the late surge then lose a penny or two at the death\", \"sentimiento_finbert\": \"negativo\"}, {\"id\": \"ST-7\", \"fecha\": \"2026-10-30\", \"texto\": \"$ABUS $ASPI Natural gas M&amp;A is heating up. EQT announced an all-stock acquisition of Range Resources, creating a U.S. producer with pro forma enterprise value above $50B, including debt. The offer implies a roughly 20.6% premium for Range shareholders.\", \"sentimiento_finbert\": \"positivo\"}, {\"id\": \"ST-8\", \"fecha\": \"2026-10-28\", \"texto\": \"$ABUS as long as no one dies post phase 2 we should be good $ARTV\", \"sentimiento_finbert\": \"positivo\"}]}"
+  }
+]

@@ -1,0 +1,84 @@
+{
+  "clasificacion": {
+    "n_observaciones": 3634,
+    "tasa_base": 0.19290038525041278,
+    "modelo": {
+      "accuracy": 0.5242157402311503,
+      "precision": 0.23802242609582058,
+      "recall": 0.666191155492154,
+      "f1": 0.3507322568531731,
+      "auc": 0.6060350198659262,
+      "precision_en_senal_alerta": 0.24846625766871167,
+      "n_senales_alerta": 326
+    },
+    "linea_base_siempre_no_sube": {
+      "accuracy": 0.8070996147495872,
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "auc": 0.5
+    }
+  },
+  "estrategias": {
+    "senal de alerta": {
+      "retorno_total": -0.957555915603536,
+      "caida_maxima": -0.9742521736645475,
+      "operaciones": 103,
+      "operaciones_ganadoras_pct": 0.30097087378640774,
+      "ventanas_invertido": "51/69"
+    },
+    "top 3 puntaje": {
+      "retorno_total": -0.6219371060148351,
+      "caida_maxima": -0.766102912819036,
+      "operaciones": 207,
+      "operaciones_ganadoras_pct": 0.357487922705314,
+      "ventanas_invertido": "69/69"
+    },
+    "senal de alerta (sin ventanas con salto > 60%)": {
+      "retorno_total": -0.9839340604663509,
+      "caida_maxima": -0.9839340604663509,
+      "operaciones": 101,
+      "operaciones_ganadoras_pct": 0.297029702970297,
+      "ventanas_invertido": "50/69"
+    },
+    "top 3 puntaje (sin ventanas con salto > 60%)": {
+      "retorno_total": -0.8813260057252278,
+      "caida_maxima": -0.8884408746608343,
+      "operaciones": 207,
+      "operaciones_ganadoras_pct": 0.3526570048309179,
+      "ventanas_invertido": "69/69"
+    },
+    "senal de alerta (sin costos, referencia)": {
+      "retorno_total": -0.9423351692568416,
+      "caida_maxima": -0.965849608253515,
+      "operaciones": 103,
+      "operaciones_ganadoras_pct": 0.30097087378640774,
+      "ventanas_invertido": "51/69"
+    },
+    "top 3 puntaje (sin costos, referencia)": {
+      "retorno_total": -0.42768884955915665,
+      "caida_maxima": -0.6725333458442713,
+      "operaciones": 207,
+      "operaciones_ganadoras_pct": 0.357487922705314,
+      "ventanas_invertido": "69/69"
+    },
+    "comprar y mantener": {
+      "retorno_total": -0.3293374878248023,
+      "caida_maxima": -0.3952198600033182,
+      "tickers": 18
+    }
+  },
+  "periodo_prueba": [
+    "2026-01-06",
+    "2026-10-28"
+  ],
+  "supuestos": {
+    "comision_por_lado": 0.001,
+    "deslizamiento_por_lado": 0.002,
+    "rebalanceo_cada_dias": 3,
+    "umbral_alerta": 0.65,
+    "salto_sospechoso": 0.6,
+    "filas_con_salto_en_ventana": 25,
+    "fuente": "Supabase (solo lectura)"
+  }
+}
