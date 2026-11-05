@@ -1,15 +1,4 @@
-"""Fase 1 - Ingesta de datos de texto (no estructurados).
-
-Fuentes activas:
-- 'noticia' via Finnhub News API.
-- 'stocktwits' via la API publica de StockTwits (sin autenticacion), como
-  sustituto de Reddit mientras no hay credenciales de PRAW. Da texto crudo
-  real (mensajes de usuarios sobre el ticker).
-  Pagina hacia atras (hasta 5 paginas, ~150 mensajes/ticker) hasta cubrir
-  la ventana de --days o quedarse sin mensajes mas antiguos.
-
-La funcion fetch_reddit_posts() queda como stub: cuando existan
-REDDIT_CLIENT_ID/SECRET, se completa con praw sin tocar el resto del pipeline.
+"""Fase 1 - Ingesta de texto: noticias (Finnhub) + mensajes (StockTwits).
 
 Uso:
     python -m src.ingestion.ingest_text_data
@@ -28,12 +17,7 @@ import finnhub
 import pandas as pd
 import requests
 
-from src.config import (
-    DEFAULT_TICKERS,
-    FINNHUB_API_KEY,
-    REDDIT_CLIENT_ID,
-    REDDIT_CLIENT_SECRET,
-)
+from src.config import DEFAULT_TICKERS, FINNHUB_API_KEY
 from src.db import Texto, get_or_create_ticker, get_session, init_db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -43,6 +27,7 @@ DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 STOCKTWITS_URL = "https://api.stocktwits.com/api/2/streams/symbol/{symbol}.json"
 
+# StockTwits bloquea el User-Agent por defecto de `requests`; se usa uno de navegador.
 STOCKTWITS_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -51,13 +36,20 @@ STOCKTWITS_HEADERS = {
     "Accept": "application/json",
 }
 
+
 def fetch_finnhub_news(client: finnhub.Client, symbol: str, days: int) -> list[dict]:
     to_date = dt.date.today()
     from_date = to_date - dt.timedelta(days=days)
     news = client.company_news(symbol, _from=from_date.isoformat(), to=to_date.isoformat())
     return news or []
 
+
 def fetch_stocktwits_messages(symbol: str, days: int, max_paginas: int = 5) -> list[dict]:
+    """API publica de StockTwits, sin API key. Pagina hacia atras usando el id
+    del mensaje mas antiguo de cada pagina (parametro `max` de la API), hasta
+    `max_paginas` paginas (~30 mensajes cada una) o hasta que los mensajes ya
+    queden fuera de la ventana de `days` dias, lo que pase primero.
+    """
     url = STOCKTWITS_URL.format(symbol=symbol)
     limite = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
     filas = []
@@ -97,15 +89,10 @@ def fetch_stocktwits_messages(symbol: str, days: int, max_paginas: int = 5) -> l
             break
 
         max_id = data["cursor"].get("max") or mensajes[-1]["id"] - 1
-        time.sleep(0.5) 
+        time.sleep(0.5)  # no saturar la API publica
 
     return filas
 
-def fetch_reddit_posts(symbol: str, days: int) -> list[dict]:
-    if not (REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET):
-        logger.info("Reddit no configurado todavia; se omite esta fuente para %s", symbol)
-        return []
-    raise NotImplementedError("Ingesta de Reddit pendiente de implementar (PRAW).")
 
 def run(tickers: list[str], days: int) -> None:
     if not FINNHUB_API_KEY:
@@ -136,8 +123,6 @@ def run(tickers: list[str], days: int) -> None:
         except Exception:
             logger.exception("Fallo StockTwits para %s", symbol)
             stocktwits_items = []
-
-        reddit_items = fetch_reddit_posts(symbol, days)
 
         for item in news_items:
             fecha = dt.datetime.fromtimestamp(item.get("datetime", 0))
@@ -184,9 +169,6 @@ def run(tickers: list[str], days: int) -> None:
             )
             all_rows.append({"symbol": symbol, "fuente": "stocktwits", **item})
 
-        for item in reddit_items:
-            all_rows.append({"symbol": symbol, "fuente": "reddit", **item})
-
         session.commit()
 
     if all_rows:
@@ -197,11 +179,13 @@ def run(tickers: list[str], days: int) -> None:
 
     session.close()
 
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Ingesta de texto (noticias / reddit) para penny stocks")
+    parser = argparse.ArgumentParser(description="Ingesta de texto (noticias / StockTwits) para penny stocks")
     parser.add_argument("--tickers", nargs="+", default=DEFAULT_TICKERS)
     parser.add_argument("--days", type=int, default=30, help="Dias hacia atras de noticias a traer")
-    return parser.parseargs()
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()

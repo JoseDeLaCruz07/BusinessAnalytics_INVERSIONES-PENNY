@@ -1,14 +1,4 @@
-"""Fase 3 - ML Quality Assurance.
-
-Tres responsabilidades, independientes entre si:
-1. evaluate_xgboost(): holdout temporal honesto (entrena solo con el pasado,
-   evalua sobre el futuro mas reciente de cada ticker) - mas riguroso que el
-   k-fold de train_xgboost.py, que mezcla fechas entre train/test.
-2. evaluate_finbert(): accuracy de FinBERT contra un set de validacion
-   etiquetado a mano (tests/fixtures/finbert_validation_set.csv) y lista de
-   casos mal clasificados.
-3. checklist_calidad_datos(): completitud, consistencia, trazabilidad y
-   reproducibilidad sobre lo que hay en la base de datos ahora mismo.
+"""Fase 3 - QA: holdout temporal de XGBoost, accuracy de FinBERT, checklist de calidad de datos.
 
 Uso:
     python -m src.models.evaluate_models
@@ -18,16 +8,14 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
-import math
 from pathlib import Path
 
 import pandas as pd
-import xgboost as xgb
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score
 
 from src.config import FINBERT_MODEL_VERSION
 from src.db import PrecioOHLCV, RatioFinanciero, Texto, get_session, init_db
-from src.models.train_xgboost import FEATURE_COLS, calcular_scale_pos_weight, construir_dataset
+from src.config import TARGET_HORIZON_DAYS
+from src.models.train_xgboost import FEATURE_COLS, construir_dataset, evaluar_walk_forward
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -36,21 +24,6 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
 MODELS_DIR = DATA_DIR / "models"
 FIXTURES_DIR = ROOT_DIR / "tests" / "fixtures"
-TEST_SIZE = 0.2
-
-
-def split_temporal(dataset: pd.DataFrame, test_size: float = TEST_SIZE) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Para cada ticker, las filas mas recientes van a test; el resto a train.
-
-    Evita fuga de informacion (nunca se entrena con datos "del futuro" respecto al test).
-    """
-    train_parts, test_parts = [], []
-    for _, grupo in dataset.groupby("symbol"):
-        grupo = grupo.sort_values("fecha")
-        n_test = max(1, math.ceil(len(grupo) * test_size))
-        train_parts.append(grupo.iloc[:-n_test])
-        test_parts.append(grupo.iloc[-n_test:])
-    return pd.concat(train_parts), pd.concat(test_parts)
 
 
 def evaluate_xgboost() -> dict:
@@ -58,46 +31,14 @@ def evaluate_xgboost() -> dict:
     dataset = construir_dataset(session)
     session.close()
 
-    if dataset.empty or dataset["target"].nunique() < 2:
-        logger.warning("Dataset insuficiente para evaluar XGBoost (vacio o con una sola clase).")
+    resultado = evaluar_walk_forward(dataset, FEATURE_COLS, purga_dias=TARGET_HORIZON_DAYS) if not dataset.empty else None
+    if not resultado:
+        logger.warning("Dataset insuficiente para evaluar XGBoost (pocas fechas o un tramo sin ambas clases).")
         return {}
-
-    train_df, test_df = split_temporal(dataset)
-    if train_df.empty or test_df.empty or train_df["target"].nunique() < 2:
-        logger.warning("Split temporal no genero suficientes datos/clases en train. Se omite evaluacion de XGBoost.")
-        return {}
-
-    peso = calcular_scale_pos_weight(train_df["target"])
-    modelo = xgb.XGBClassifier(
-        n_estimators=200,
-        max_depth=4,
-        learning_rate=0.05,
-        eval_metric="logloss",
-        random_state=42,
-        scale_pos_weight=peso,
-    )
-    modelo.fit(train_df[FEATURE_COLS], train_df["target"])
-    pred = modelo.predict(test_df[FEATURE_COLS])
-    y_test = test_df["target"]
-
-    resultado = {
-        "n_train": len(train_df),
-        "n_test": len(test_df),
-        "accuracy": float(accuracy_score(y_test, pred)),
-        "precision": float(precision_score(y_test, pred, zero_division=0)),
-        "recall": float(recall_score(y_test, pred, zero_division=0)),
-        "f1": float(f1_score(y_test, pred, zero_division=0)),
-        "confusion_matrix": confusion_matrix(y_test, pred, labels=[0, 1]).tolist(),
-        "feature_importance": dict(zip(FEATURE_COLS, [float(v) for v in modelo.feature_importances_])),
-    }
     logger.info(
-        "XGBoost holdout temporal: accuracy=%.3f precision=%.3f recall=%.3f f1=%.3f (train=%d, test=%d)",
-        resultado["accuracy"],
-        resultado["precision"],
-        resultado["recall"],
-        resultado["f1"],
-        resultado["n_train"],
-        resultado["n_test"],
+        "XGBoost walk-forward: AUC=%.3f (std %.3f, tramos sobre azar %s) lift top 10%%=%.2fx tasa base=%.1f%%",
+        resultado["auc"], resultado["auc_std"], resultado["folds_sobre_azar"], resultado["lift_top10"],
+        resultado["tasa_base"] * 100,
     )
     return resultado
 
