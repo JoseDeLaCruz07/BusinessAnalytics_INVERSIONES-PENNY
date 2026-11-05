@@ -1,9 +1,4 @@
-"""Fase 2 - Analisis de sentimiento con FinBERT (ProsusAI/finbert).
-
-Clasifica cada texto pendiente en `textos` (positivo/negativo/neutral + score
-de confianza) y guarda el resultado en `sentimiento`. La primera corrida
-descarga los pesos del modelo desde Hugging Face (~440MB), asi que requiere
-salida de red a huggingface.co.
+"""Fase 2 - Sentimiento con FinBERT (ProsusAI/finbert). Primera corrida descarga ~440MB de HF.
 
 Uso:
     python -m src.models.sentiment_finbert
