@@ -1,0 +1,13 @@
+.git
+.venv
+venv
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+data/*.db
+data/*.csv
+data/models/
+__pycache__/
+*.pyc
+# docs/evidencias/ se incluye: el dashboard muestra el ultimo backtest desde ahi
