@@ -1,10 +1,4 @@
-"""Generador de datos SINTETICOS (ficticios) para probar el pipeline sin credenciales.
-
-Esto NO reemplaza la ingesta real (ingest_market_data.py / ingest_text_data.py).
-Sirve unicamente para que haya algo que mostrar/probar (DB y CSVs limpios) mientras
-no se corren los scripts reales contra Finnhub/Yahoo. Los precios, ratios y noticias
-generados aqui son inventados con un random walk reproducible (seed fija) y frases de
-ejemplo, no informacion de mercado real.
+"""Generador de datos SINTETICOS (ficticios), para probar el pipeline sin credenciales.
 
 Uso:
     python -m src.ingestion.seed_synthetic_data
@@ -48,15 +42,16 @@ HEADLINES_NEUTRAS = [
     "{symbol} participa en conferencia del sector",
 ]
 
+
 def generar_ohlcv(symbol: str, days: int, rng: np.random.Generator) -> list[dict]:
     precio = rng.uniform(0.5, 4.5)
     hoy = dt.date.today()
     filas = []
     for i in range(days, 0, -1):
         fecha = hoy - dt.timedelta(days=i)
-        if fecha.weekday() >= 5:  
+        if fecha.weekday() >= 5:  # fin de semana, sin trading
             continue
-        cambio_pct = rng.normal(0, 0.05)  
+        cambio_pct = rng.normal(0, 0.05)  # penny stocks son volatiles
         precio = max(0.05, precio * (1 + cambio_pct))
         open_ = precio * (1 + rng.normal(0, 0.01))
         close = precio
@@ -75,14 +70,17 @@ def generar_ohlcv(symbol: str, days: int, rng: np.random.Generator) -> list[dict
         )
     return filas
 
+
 def generar_ratios(rng: np.random.Generator) -> dict:
     return {
+        # market_cap en millones de USD (igual que Finnhub en ingest_market_data.py).
         "market_cap": round(rng.uniform(5, 300), 2),
         "pe_ratio": round(rng.uniform(-20, 40), 2),
         "pb_ratio": round(rng.uniform(0.1, 8), 2),
         "eps": round(rng.uniform(-1.5, 0.5), 4),
         "shares_outstanding": round(rng.uniform(50e6, 800e6), 0),
     }
+
 
 def generar_noticias(symbol: str, days: int, rng: np.random.Generator, rnd: random.Random) -> list[dict]:
     hoy = dt.date.today()
@@ -104,6 +102,7 @@ def generar_noticias(symbol: str, days: int, rng: np.random.Generator, rnd: rand
             }
         )
     return filas
+
 
 def run(tickers: list[str], days: int) -> None:
     logger.warning(
@@ -152,11 +151,13 @@ def run(tickers: list[str], days: int) -> None:
     session.close()
     logger.warning("Listo. Recuerda: estos datos son ficticios, solo para probar el pipeline end-to-end.")
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Genera datos sinteticos para probar el pipeline sin red/credenciales")
     parser.add_argument("--tickers", nargs="+", default=DEFAULT_TICKERS)
     parser.add_argument("--days", type=int, default=90)
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = parse_args()
