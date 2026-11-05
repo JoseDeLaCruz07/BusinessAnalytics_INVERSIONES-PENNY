@@ -1,0 +1,2 @@
+fecha,version,auc,auc_std,folds_sobre_azar,lift_top10,tasa_base,n,publicado,motivo
+2026-11-05,xgboost-20261105,0.6028597143487713,0.0347515169295246,4/4,1.4259750910143518,0.186299831555306,8905,True,AUC 0.603: ok
