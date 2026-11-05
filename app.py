@@ -1,8 +1,4 @@
-"""Fase 4 - Dashboard Streamlit: reportes descriptivo, predictivo y prescriptivo.
-
-Uso:
-    streamlit run app.py
-"""
+"""Dashboard Streamlit: reportes descriptivo, predictivo y prescriptivo. Uso: streamlit run app.py"""
 from __future__ import annotations
 
 import os
@@ -32,6 +28,7 @@ import math
 import types
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import xgboost as xgb
@@ -40,23 +37,40 @@ from sqlalchemy import and_, func
 from src.config import (
     TARGET_HORIZON_DAYS,
     TARGET_PCT_THRESHOLD,
+    PERFIL_RIESGO_DEFECTO,
+    PERFILES_RIESGO,
     UMBRAL_SENAL_ALERTA,
     UMBRAL_SENAL_MONITOREAR,
 )
 from src.db import (
     Feature,
+    FilingSEC,
     PrecioOHLCV,
     Prediccion,
     RatioFinanciero,
     Recomendacion,
+    RecomendacionIA,
     Sentimiento,
     Texto,
     Ticker,
     get_session,
     init_db,
 )
-from src.models.train_xgboost import FEATURE_COLS, PUBLISHED_MODEL_PATH
+from src.models.train_xgboost import (
+    AUC_AVISO,
+    FEATURE_COLS,
+    MONITOREO_PATH,
+    PUBLISHED_MODEL_PATH,
+    construir_dataset,
+    evaluar_walk_forward,
+)
+from src.reports.analisis import (
+    VENTANA_VOLATILIDAD_DIAS,
+    calcular_cono_volatilidad,
+    contribuciones_prediccion,
+)
 from src.reports.business_rules import generar_recomendacion
+from src.reports.predicciones_diarias import guardar_prediccion_y_recomendacion
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 MODELS_DIR = DATA_DIR / "models"
@@ -163,6 +177,8 @@ def inyectar_css(tema: dict) -> None:
             color: {tema['text']} !important;
         }}
         [data-testid="stMetricLabel"] p {{ color: {tema['text_muted']} !important; font-family: {FONT_BODY}; }}
+        [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p {{ color: {tema['text_muted']} !important; }}
+        [data-testid="stMetric"] [data-testid="stTooltipIcon"] svg {{ color: {tema['text_muted']} !important; }}
 
         [data-testid="stTabs"] button[data-baseweb="tab"] {{
             font-family: {FONT_DISPLAY};
@@ -187,6 +203,22 @@ def inyectar_css(tema: dict) -> None:
 
         [data-testid="stWidgetLabel"] p, [data-testid="stRadio"] [data-testid="stMarkdownContainer"] p {{
             color: {tema['text']} !important;
+        }}
+
+
+        .element-container:has(.vista-nav) + .element-container [role="radiogroup"] {{
+            gap: 0.2rem; border-bottom: 1px solid {tema['border']}; margin-bottom: 0.6rem;
+        }}
+        .element-container:has(.vista-nav) + .element-container label {{
+            padding: 0.45rem 1.1rem; margin: 0; cursor: pointer; border-bottom: 2px solid transparent;
+        }}
+        .element-container:has(.vista-nav) + .element-container label > div:first-child {{ display: none; }}
+        .element-container:has(.vista-nav) + .element-container label p {{
+            color: {tema['text_muted']} !important; font-size: 0.95rem; font-weight: 500;
+        }}
+        .element-container:has(.vista-nav) + .element-container label:has(input:checked) {{ border-bottom-color: {tema['accent']}; }}
+        .element-container:has(.vista-nav) + .element-container label:has(input:checked) p {{
+            color: {tema['accent']} !important; font-weight: 600;
         }}
 
         header[data-testid="stHeader"] {{
@@ -283,9 +315,8 @@ def aplicar_tema_plotly(fig: go.Figure, tema: dict) -> go.Figure:
 
 
 @st.cache_resource
-def get_db_session():
+def preparar_db() -> None:
     init_db()
-    return get_session()
 
 
 @con_cache
@@ -314,7 +345,7 @@ def cargar_ohlcv_df(session, ticker_id: int) -> pd.DataFrame:
 
 
 def grafico_dispersion_mercado(df: pd.DataFrame, tema: dict, ticker_actual: str) -> go.Figure:
-    """Sentimiento (X) vs probabilidad XGBoost (Y) de todos los tickers.
+    """Sentimiento (X) vs puntaje XGBoost (Y) de todos los tickers.
 
     El cuadrante superior derecho (sentimiento > 0 y probabilidad >=
     UMBRAL_SENAL_MONITOREAR) es el "primer cuadrante" que se usa como filtro.
@@ -356,7 +387,7 @@ def grafico_dispersion_mercado(df: pd.DataFrame, tema: dict, ticker_actual: str)
                     line=dict(width=grosor, color=borde),
                 ),
                 hovertemplate=(
-                    "<b>%{customdata[0]}</b><br>Sentimiento: %{x:.2f}<br>Probabilidad: %{y:.0%}"
+                    "<b>%{customdata[0]}</b><br>Sentimiento: %{x:.2f}<br>Puntaje: %{y:.0%}"
                     "<br>Market cap: $%{customdata[1]:,.0f}M<extra></extra>"
                 ),
             )
@@ -376,7 +407,7 @@ def grafico_dispersion_mercado(df: pd.DataFrame, tema: dict, ticker_actual: str)
         height=460,
         margin=dict(l=0, r=0, t=40, b=0),
         xaxis=dict(title=f"Sentimiento promedio ({VENTANA_SENTIMIENTO_DIAS} dias)", range=rango_x),
-        yaxis=dict(title="Probabilidad de suba (XGBoost)", range=[0, 1], tickformat=".0%"),
+        yaxis=dict(title="Puntaje del modelo (XGBoost)", range=[0, 1], tickformat=".0%"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(color=tema["text"])),
         showlegend=True,
     )
@@ -464,7 +495,11 @@ def texto_seguro(texto: str, limite: int | None = None) -> str:
 
 def tabla_textos(df: pd.DataFrame, tema: dict, symbol: str) -> None:
     nd = f'<span style="color:{tema["text_muted"]};">N/D</span>'
-    fuentes = {"noticia": ("Noticia", tema["accent"]), "stocktwits": ("StockTwits", tema["accent_2"])}
+    fuentes = {
+        "noticia": ("Noticia", tema["accent"]),
+        "stocktwits": ("StockTwits", tema["accent_2"]),
+        "sec": ("SEC", tema["text"]),
+    }
     sentimientos = {
         "positivo": ("Positivo", tema["success"]),
         "negativo": ("Negativo", tema["danger"]),
@@ -477,7 +512,7 @@ def tabla_textos(df: pd.DataFrame, tema: dict, symbol: str) -> None:
 
     def sentimiento_html(fila):
         nombre, color = sentimientos.get(fila["etiqueta"], (texto_seguro(fila["etiqueta"]), tema["neutral"]))
-        return chip_html(f"{nombre} {fila['score']:.0%}", color)
+        return chip_html(nombre if pd.isna(fila["score"]) else f"{nombre} {fila['score']:.0%}", color)
 
     def enlace_html(fila):
         if fila["fuente"] == "stocktwits":
@@ -514,6 +549,211 @@ def tabla_textos(df: pd.DataFrame, tema: dict, symbol: str) -> None:
     )
 
 
+@con_cache
+def cargar_filings_df(session, ticker_id: int) -> pd.DataFrame:
+    rows = (
+        session.query(FilingSEC.fecha, FilingSEC.formulario, FilingSEC.categoria, FilingSEC.signo, FilingSEC.descripcion, FilingSEC.url)
+        .filter(FilingSEC.ticker_id == ticker_id)
+        .order_by(FilingSEC.fecha.desc())
+        .limit(200)
+        .all()
+    )
+    df = pd.DataFrame(rows, columns=["fecha", "formulario", "categoria", "signo", "descripcion", "url"])
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    return df
+
+
+def unir_filings(textos_df: pd.DataFrame, filings_df: pd.DataFrame) -> pd.DataFrame:
+    """Los filings de la SEC se muestran junto a los textos; su 'sentimiento' es el signo de la regla, sin score."""
+    if filings_df.empty:
+        return textos_df
+    sec = pd.DataFrame(
+        {
+            "fecha": filings_df["fecha"],
+            "fuente": "sec",
+            "contenido": filings_df["formulario"] + ": " + filings_df["descripcion"],
+            "url": filings_df["url"],
+            "etiqueta": filings_df["signo"],
+            "score": float("nan"),
+        }
+    )
+    return pd.concat([textos_df, sec], ignore_index=True).sort_values("fecha", ascending=False)
+
+
+@con_cache
+def cargar_recomendacion_ia(session, ticker_id: int) -> dict | None:
+    fila = session.query(RecomendacionIA).filter_by(ticker_id=ticker_id).order_by(RecomendacionIA.fecha.desc()).first()
+    if fila is None:
+        return None
+    return {
+        "fecha": fila.fecha,
+        "modelo_llm": fila.modelo_llm,
+        "resumen": fila.resumen,
+        "a_favor": json.loads(fila.a_favor),
+        "riesgos": json.loads(fila.riesgos),
+        "vigilar": json.loads(fila.vigilar),
+        "confianza": fila.confianza,
+        # Campos nuevos: las recomendaciones anteriores no los tienen (NULL) y la tarjeta simplemente no se muestra.
+        "accion_sugerida": fila.accion_sugerida,
+        "justificacion_accion": fila.justificacion_accion,
+        "alternativas": json.loads(fila.alternativas) if fila.alternativas else [],
+        "noticias_clave": json.loads(fila.noticias_clave) if fila.noticias_clave else [],
+    }
+
+
+def tarjeta_html(contenido: str, tema: dict, borde_color: str | None = None, lado: str = "left", alto_min: str = "0") -> str:
+    acento = f"border-{lado}:4px solid {borde_color};" if borde_color else ""
+    return (
+        f'<div style="border:1px solid {tema["border"]}; {acento} border-radius:12px; background-color:{tema["surface"]}; '
+        f'padding:1.1rem 1.4rem; box-shadow:0 1px 3px rgba(15,23,42,0.08); height:100%; min-height:{alto_min}; '
+        f'display:flex; flex-direction:column; justify-content:center;">{contenido}</div>'
+    )
+
+
+def etiqueta_html(texto: str, tema: dict, color: str | None = None) -> str:
+    return (
+        f'<div style="font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; font-weight:700; '
+        f'color:{color or tema["text_muted"]}; margin-bottom:0.35rem;">{texto}</div>'
+    )
+
+
+def bloque_senal(recomendacion: dict, prob: float, tema: dict) -> str:
+    color = tema[COLOR_SENAL_KEY[recomendacion["tipo_senal"]]]
+    contexto = recomendacion["justificacion"].replace(f"Puntaje del modelo XGBoost: {prob:.1%}. ", "")
+    return tarjeta_html(
+        etiqueta_html("Senal del modelo", tema)
+        + f'<div style="font-family:{FONT_DISPLAY}; font-size:2rem; font-weight:800; line-height:1.1; color:{color};">'
+        f'{texto_seguro(recomendacion["tipo_senal"].upper())}</div>'
+        f'<div style="margin-top:0.5rem; font-family:{FONT_DISPLAY}; font-size:1.5rem; font-weight:700; color:{tema["text"]};">{prob:.1%}'
+        f'<span style="font-family:{FONT_BODY}; font-size:0.85rem; color:{tema["text_muted"]};"> puntaje del modelo</span></div>'
+        f'<div style="margin-top:0.6rem; font-size:0.9rem; color:{tema["text_muted"]};">{texto_seguro(contexto)}</div>',
+        tema,
+        borde_color=color,
+        alto_min="13.4rem",
+    )
+
+
+def bloque_asesor_ia(rec: dict, tema: dict) -> None:
+    """El texto lo escribe un LLM: se escapa igual que cualquier texto de terceros."""
+    colores_confianza = {"baja": tema["danger"], "media": tema["accent_2"], "alta": tema["success"]}
+    chip = chip_html(f"Confianza {texto_seguro(rec['confianza'])}", colores_confianza.get(rec["confianza"], tema["neutral"]))
+    cabecera = (
+        f'<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.6rem;">'
+        f'<div style="display:flex; align-items:center; gap:0.7rem;">'
+        f'<span style="font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; font-weight:700; color:{tema["text_muted"]};">'
+        f"Resumen del asesor</span>{chip}</div>"
+        f'<span style="font-size:0.78rem; color:{tema["text_muted"]};">{texto_seguro(rec["modelo_llm"])} · {rec["fecha"]}</span></div>'
+    )
+    resumen = f'<div style="font-size:1.05rem; line-height:1.55; color:{tema["text"]};">{texto_seguro(rec["resumen"])}</div>'
+
+    def lista(titulo: str, clave: str, color: str) -> str:
+        items = "".join(
+            f'<div style="display:flex; gap:0.55rem; margin-bottom:0.45rem; font-size:0.92rem; line-height:1.4; color:{tema["text"]};">'
+            f'<span style="color:{color}; font-size:0.6rem; padding-top:0.35rem;">●</span><span>{texto_seguro(t)}</span></div>'
+            for t in rec[clave]
+        )
+        return tarjeta_html(etiqueta_html(titulo, tema, color) + items, tema, borde_color=color, lado="top")
+
+    columnas = (
+        lista("A favor", "a_favor", tema["success"]),
+        lista("Riesgos", "riesgos", tema["danger"]),
+        lista("Que vigilar", "vigilar", tema["accent_2"]),
+    )
+    st.markdown(
+        f'<div style="display:grid; gap:1rem;">{tarjeta_html(cabecera + resumen, tema)}'
+        f'<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:1rem;">{"".join(columnas)}</div></div>',
+        unsafe_allow_html=True,
+    )
+    if rec.get("accion_sugerida"):
+        colores_accion = {"vigilar de cerca": tema["accent_2"], "esperar confirmacion": tema["neutral"], "evitar": tema["danger"]}
+        color_accion = colores_accion.get(rec["accion_sugerida"], tema["neutral"])
+        accion = (
+            etiqueta_html("Accion sugerida por la IA (acotada por la regla fija)", tema)
+            + f'<div style="font-family:{FONT_DISPLAY}; font-size:1.4rem; font-weight:800; color:{color_accion};">'
+            f'{texto_seguro(rec["accion_sugerida"].upper())}</div>'
+            f'<div style="margin-top:0.4rem; font-size:0.92rem; line-height:1.45; color:{tema["text"]};">'
+            f'{texto_seguro(rec.get("justificacion_accion") or "")}</div>'
+        )
+        alternativas = "".join(
+            f'<div style="display:flex; gap:0.55rem; margin-bottom:0.45rem; font-size:0.92rem; line-height:1.4; color:{tema["text"]};">'
+            f'<span style="color:{tema["accent_2"]}; font-size:0.6rem; padding-top:0.35rem;">●</span><span>{texto_seguro(t)}</span></div>'
+            for t in rec.get("alternativas", [])
+        ) or f'<span style="color:{tema["text_muted"]};">Sin alternativas.</span>'
+
+        def cita(n: dict) -> str:
+            enlace = (
+                f' · <a href="{texto_seguro(n["url"])}" target="_blank" rel="noopener noreferrer">ver fuente</a>'
+                if str(n.get("url") or "").startswith("http") else ""
+            )
+            return (
+                f'<div style="margin-bottom:0.55rem; font-size:0.88rem; line-height:1.4; color:{tema["text"]};">'
+                f'<b>{texto_seguro(n["id"])}</b> <span style="color:{tema["text_muted"]};">{texto_seguro(str(n.get("fecha") or ""))}</span>'
+                f'{enlace}<br>{texto_seguro(n.get("texto") or "", 220)}</div>'
+            )
+
+        citas = "".join(cita(n) for n in rec.get("noticias_clave", [])) or (
+            f'<span style="color:{tema["text_muted"]};">La IA no cito textos verificables.</span>'
+        )
+        st.markdown(
+            f'<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:1rem; margin-top:1rem;">'
+            f'{tarjeta_html(accion, tema, borde_color=color_accion, lado="top")}'
+            f'{tarjeta_html(etiqueta_html("Alternativas mas prudentes", tema, tema["accent_2"]) + alternativas, tema, borde_color=tema["accent_2"], lado="top")}'
+            f'{tarjeta_html(etiqueta_html("Noticias clave citadas (verificadas)", tema) + citas, tema, borde_color=tema["neutral"], lado="top")}'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        f'<div style="margin-top:0.6rem; font-size:0.8rem; color:{tema["text_muted"]};">'
+        "Generado con IA a partir de los datos de este dashboard. Analisis educativo, no es asesoria financiera.</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def historial_con_etiquetas(df: pd.DataFrame, tema: dict) -> pd.DataFrame:
+    colores_resultado = {"acerto": tema["success"], "fallo": tema["danger"], "pendiente": tema["neutral"]}
+    out = df.copy()
+    out["fecha"] = out["fecha"].astype(str)
+    out["resultado"] = out["resultado"].map(lambda r: chip_html(texto_seguro(r), colores_resultado.get(r, tema["neutral"])))
+    out["senal"] = out["senal"].map(lambda r: chip_html(texto_seguro(r), tema[COLOR_SENAL_KEY.get(r, "neutral")]))
+    return out
+
+
+def grafico_ranking_senales(df: pd.DataFrame, tema: dict, ticker_actual: str, tasa_base: float | None) -> go.Figure:
+    df = df.sort_values("probabilidad", ascending=False)
+    fig = go.Figure()
+    for senal, nombre in (("senal de alerta", "Senal de alerta"), ("monitorear", "Monitorear"), ("sin senal", "Sin senal")):
+        sub = df[df["senal"] == senal]
+        if sub.empty:
+            continue
+        fig.add_trace(
+            go.Bar(
+                x=sub["probabilidad"], y=sub["symbol"], orientation="h", name=nombre,
+                marker=dict(
+                    color=tema[COLOR_SENAL_KEY[senal]],
+                    line=dict(color=tema["text"], width=[2 if t == ticker_actual else 0 for t in sub["symbol"]]),
+                ),
+                text=[f"{v:.0%}" for v in sub["probabilidad"]], textposition="outside", textfont=dict(color=tema["text"]),
+                hovertemplate="<b>%{y}</b><br>Puntaje: %{x:.1%}<extra></extra>",
+            )
+        )
+    referencias = [(UMBRAL_SENAL_MONITOREAR, "Monitorear"), (UMBRAL_SENAL_ALERTA, "Alerta")]
+    if tasa_base:
+        referencias.append((tasa_base, "Tasa base"))
+    for x, texto in referencias:
+        fig.add_vline(x=x, line=dict(color=tema["text_muted"], width=1, dash="dot"))
+        fig.add_annotation(x=x, y=1, yref="paper", text=f"{texto} {x:.0%}", showarrow=False, yanchor="bottom", font=dict(size=10, color=tema["text_muted"]))
+    fig.update_layout(
+        height=30 * len(df) + 90,
+        margin=dict(l=0, r=30, t=30, b=0),
+        barmode="overlay",
+        bargap=0.35,
+        xaxis=dict(range=[0, 1.05], tickformat=".0%"),
+        yaxis=dict(categoryorder="array", categoryarray=list(df["symbol"]), autorange="reversed"),
+        legend=dict(orientation="h", yanchor="top", y=-0.02, xanchor="left", x=0, font=dict(color=tema["text"])),
+    )
+    return aplicar_tema_plotly(fig, tema)
+
+
 def filtrar_por_rango(df: pd.DataFrame, dias: int | None) -> pd.DataFrame:
     if df.empty or dias is None:
         return df
@@ -538,6 +778,13 @@ def cargar_sentimiento_diario_df(session, ticker_id: int) -> pd.DataFrame:
     return df.groupby("fecha")["sentimiento"].mean().reset_index()
 
 
+def pe_valido(pe, eps):
+    """Un P/E solo tiene sentido con utilidad positiva; si el EPS es <= 0 se muestra N/D."""
+    if pe is None or eps is None or pd.isna(pe) or pd.isna(eps) or eps <= 0 or pe <= 0:
+        return None
+    return pe
+
+
 @con_cache
 def cargar_ratios_df(session, ticker_id: int) -> pd.DataFrame:
     rows = session.query(RatioFinanciero).filter_by(ticker_id=ticker_id).order_by(RatioFinanciero.fecha.desc()).all()
@@ -546,7 +793,7 @@ def cargar_ratios_df(session, ticker_id: int) -> pd.DataFrame:
             {
                 "fecha": r.fecha,
                 "market_cap": r.market_cap,
-                "pe_ratio": r.pe_ratio,
+                "pe_ratio": pe_valido(r.pe_ratio, r.eps),
                 "pb_ratio": r.pb_ratio,
                 "eps": r.eps,
                 "shares_outstanding": r.shares_outstanding,
@@ -556,22 +803,35 @@ def cargar_ratios_df(session, ticker_id: int) -> pd.DataFrame:
     )
 
 
+# Todas las columnas que puede necesitar un modelo, el vigente o uno publicado antes del cambio de features.
+COLUMNAS_FEATURES = list(dict.fromkeys(["rsi", "media_movil", "volumen_relativo", "sentimiento_agregado", *FEATURE_COLS]))
+
+
+def columnas_del_modelo(modelo) -> list[str]:
+    """El modelo publicado manda: asi la app no se rompe si aun no se reentreno con las features nuevas."""
+    return list(modelo.get_booster().feature_names or FEATURE_COLS)
+
+
 @con_cache
 def ultimo_feature_row(session, ticker_id: int) -> dict | None:
     row = session.query(Feature).filter_by(ticker_id=ticker_id).order_by(Feature.fecha.desc()).first()
     if row is None:
         return None
-    return {
-        "fecha": row.fecha,
-        "rsi": row.rsi,
-        "media_movil": row.media_movil,
-        "volumen_relativo": row.volumen_relativo,
-        "sentimiento_agregado": row.sentimiento_agregado,
-    }
+    return {"fecha": row.fecha, **{c: getattr(row, c) for c in COLUMNAS_FEATURES}}
+
+
+def version_publicada() -> str:
+    version_path = PUBLISHED_MODEL_PATH.parent / "xgboost_latest.version.txt"
+    return version_path.read_text().strip() if version_path.exists() else ""
+
+
+def cargar_ultimo_modelo():
+    return _cargar_modelo(version_publicada())
 
 
 @st.cache_resource
-def cargar_ultimo_modelo():
+def _cargar_modelo(_version: str):
+    # `_version` solo cambia la clave de cache: con un modelo nuevo publicado en git se vuelve a cargar.
     # Modelo publicado (versionado en git) -- el unico que existe en la nube.
     if PUBLISHED_MODEL_PATH.exists():
         modelo = xgb.XGBClassifier()
@@ -591,32 +851,6 @@ def cargar_ultimo_modelo():
     modelo.load_model(modelo_path)
     modelo_version = modelo_path.stem.replace("xgboost_", "xgboost-")
     return modelo, modelo_version
-
-
-def guardar_prediccion_y_recomendacion(session, ticker_id: int, modelo_version: str, prob: float, features: dict, recomendacion: dict) -> None:
-    hoy = dt.date.today()
-    existe = session.query(Prediccion).filter_by(ticker_id=ticker_id, fecha=hoy, modelo_version=modelo_version).first()
-    if existe:
-        return
-    pred = Prediccion(
-        ticker_id=ticker_id,
-        fecha=hoy,
-        modelo_version=modelo_version,
-        prediccion="sube" if prob >= 0.5 else "no_sube",
-        score=prob,
-        features_importantes=json.dumps(features, default=str),
-    )
-    session.add(pred)
-    session.commit()
-    session.refresh(pred)
-    session.add(
-        Recomendacion(
-            prediccion_id=pred.id,
-            tipo_senal=recomendacion["tipo_senal"],
-            justificacion=recomendacion["justificacion"],
-        )
-    )
-    session.commit()
 
 
 def grafico_precio(df: pd.DataFrame, tema: dict) -> go.Figure:
@@ -694,7 +928,7 @@ def grafico_gauge(prob: float, tema: dict) -> go.Figure:
             },
         )
     )
-    fig.update_layout(height=260, margin=dict(l=20, r=20, t=30, b=0))
+    fig.update_layout(height=290, margin=dict(l=20, r=20, t=30, b=30))
     return aplicar_tema_plotly(fig, tema)
 
 
@@ -756,22 +990,180 @@ def grafico_zona_objetivo(ohlcv_df: pd.DataFrame, prob: float, tema: dict) -> go
     return aplicar_tema_plotly(fig, tema)
 
 
-def grafico_feature_importance(modelo, tema: dict) -> go.Figure:
-    importancias = pd.Series(dict(zip(FEATURE_COLS, modelo.feature_importances_))).sort_values(ascending=True)
-    colores = [tema["feature_colors"][nombre] for nombre in importancias.index]
+ETIQUETAS_FEATURES = {
+    "rsi": ("RSI", lambda v: f"{v:.1f}"),
+    "media_movil": ("Media movil", lambda v: f"${v:.2f}"),
+    "volumen_relativo": ("Volumen relativo", lambda v: f"{v:.2f}x"),
+    "sentimiento_agregado": ("Sentimiento", lambda v: f"{v:+.2f}"),
+    "precio_vs_sma": ("Precio vs media 10d", lambda v: f"{v:+.1%}"),
+    "vol_10d": ("Volatilidad 10d", lambda v: f"{v:.1%}"),
+    "vol_20d": ("Volatilidad 20d", lambda v: f"{v:.1%}"),
+    "rango_5d": ("Rango diario 5d", lambda v: f"{v:.1%}"),
+}
+def grafico_contribuciones(df: pd.DataFrame, tema: dict) -> go.Figure:
+    df = df.reindex(df["contribucion"].abs().sort_values().index)
+    etiquetas = [f"{ETIQUETAS_FEATURES[f][0]} ({ETIQUETAS_FEATURES[f][1](v)})" for f, v in zip(df["feature"], df["valor"])]
+    colores = [tema["success"] if c > 0 else tema["danger"] for c in df["contribucion"]]
+    limite = max(df["contribucion"].abs().max() * 1.35, 0.1)
     fig = go.Figure(
         go.Bar(
-            x=importancias.values,
-            y=importancias.index,
+            x=df["contribucion"],
+            y=etiquetas,
             orientation="h",
             marker_color=colores,
-            text=[f"{v:.2f}" for v in importancias.values],
+            text=[f"{c:+.2f}" for c in df["contribucion"]],
             textposition="outside",
-            hovertemplate="%{y}: %{x:.3f}<extra></extra>",
+            textfont=dict(color=tema["text"]),
+            hovertemplate="%{y}<br>Aporte: %{x:+.3f}<extra></extra>",
         )
     )
-    fig.update_layout(height=260, margin=dict(l=0, r=30, t=10, b=0), xaxis=dict(range=[0, importancias.max() * 1.25]))
+    fig.update_layout(
+        height=70 + 38 * len(df),
+        margin=dict(l=0, r=30, t=10, b=0),
+        xaxis=dict(range=[-limite, limite], title="Baja el puntaje  <  >  Sube el puntaje", zeroline=True),
+    )
     return aplicar_tema_plotly(fig, tema)
+
+
+def grafico_cono_mes(ohlcv_df: pd.DataFrame, cono: dict, tema: dict) -> go.Figure:
+    recientes = ohlcv_df.sort_values("fecha").tail(VENTANA_VOLATILIDAD_DIAS)
+    fechas = list(cono["fechas"])
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=fechas, y=cono["p90"], mode="lines", line=dict(width=0), hoverinfo="skip", showlegend=False))
+    fig.add_trace(
+        go.Scatter(
+            x=fechas, y=cono["p10"], mode="lines", line=dict(width=0), fill="tonexty",
+            fillcolor=hex_to_rgba(tema["accent"], 0.2), name="Rango 80%",
+            customdata=np.column_stack([cono["p10"], cono["p90"]]),
+            hovertemplate="%{x|%d %b}<br>80%%: $%{customdata[0]:.2f} - $%{customdata[1]:.2f}<extra></extra>",
+        )
+    )
+    fig.add_trace(go.Scatter(x=fechas, y=cono["p75"], mode="lines", line=dict(width=0), hoverinfo="skip", showlegend=False))
+    fig.add_trace(
+        go.Scatter(
+            x=fechas, y=cono["p25"], mode="lines", line=dict(width=0), fill="tonexty",
+            fillcolor=hex_to_rgba(tema["accent"], 0.38), name="Rango 50%",
+            customdata=np.column_stack([cono["p25"], cono["p75"]]),
+            hovertemplate="%{x|%d %b}<br>50%%: $%{customdata[0]:.2f} - $%{customdata[1]:.2f}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=recientes["fecha"], y=recientes["close"], mode="lines", name="Precio de cierre",
+            line=dict(color=tema["text"], width=2), hovertemplate="%{x|%d %b %Y}<br>$%{y:.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        height=340,
+        margin=dict(l=0, r=0, t=10, b=0),
+        yaxis=dict(title="Precio (USD)"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(color=tema["text"])),
+    )
+    return aplicar_tema_plotly(fig, tema)
+
+
+@st.cache_data(ttl=3600, show_spinner=False, hash_funcs=HASH_SESION_MODELO)
+def cargar_confiabilidad_modelo(session) -> dict:
+    dataset = construir_dataset(session)
+    if dataset.empty:
+        return {}
+    return evaluar_walk_forward(dataset, FEATURE_COLS, purga_dias=TARGET_HORIZON_DAYS) or {}
+
+
+EVIDENCIAS_DIR = Path(__file__).resolve().parent / "docs" / "evidencias"
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def cargar_ultimo_backtest() -> tuple[dict | None, str | None]:
+    """Ultimo resultado de `python -m src.models.backtesting` guardado en docs/evidencias (json y fecha del archivo)."""
+    archivos = sorted(EVIDENCIAS_DIR.glob("backtest_*.json"))
+    if not archivos:
+        return None, None
+    with open(archivos[-1], encoding="utf-8") as f:
+        return json.load(f), archivos[-1].stem.replace("backtest_", "")
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def cargar_monitoreo_modelo() -> pd.DataFrame:
+    if not MONITOREO_PATH.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(MONITOREO_PATH)
+    if df.empty:
+        return df
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    return df.dropna(subset=["auc"]).sort_values("fecha")
+
+
+def grafico_monitoreo_auc(df: pd.DataFrame, tema: dict) -> go.Figure:
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df["fecha"], y=df["auc"], mode="lines+markers", name="AUC", line=dict(color=tema["accent"], width=2)))
+    fig.add_hline(y=0.5, line_dash="dot", line_color=tema["text_muted"], annotation_text="azar", annotation_position="bottom right")
+    fig.add_hline(y=AUC_AVISO, line_dash="dash", line_color=tema["danger"], annotation_text="umbral de aviso", annotation_position="top right")
+    fig.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), showlegend=False, yaxis=dict(title="AUC fuera de muestra"))
+    return aplicar_tema_plotly(fig, tema)
+
+
+def seccion_backtest(tema: dict) -> None:
+    resultado, fecha = cargar_ultimo_backtest()
+    if resultado is None:
+        st.info("Todavia no hay un backtest guardado. Corre `python -m src.models.backtesting`.")
+        return
+    inicio, fin = resultado.get("periodo_prueba", ["?", "?"])
+    sup = resultado.get("supuestos", {})
+    nombres = {
+        "senal de alerta": "Comprar con senal de alerta",
+        "top 3 puntaje": "Comprar los 3 de mayor puntaje",
+        "comprar y mantener": "Comprar y mantener los 18",
+    }
+    filas = []
+    for clave, etiqueta in nombres.items():
+        e = resultado.get("estrategias", {}).get(clave)
+        if not e:
+            continue
+        ganadoras = e.get("operaciones_ganadoras_pct")
+        filas.append({
+            "estrategia": etiqueta,
+            "retorno": f"{e['retorno_total']:+.1%}",
+            "caida": f"{e['caida_maxima']:.1%}",
+            "operaciones": e.get("operaciones", "-"),
+            "ganadoras": f"{ganadoras:.0%}" if ganadoras is not None else "-",
+        })
+    renderizar_tabla_html(
+        pd.DataFrame(filas),
+        [("estrategia", "Estrategia"), ("retorno", "Retorno total"), ("caida", "Caida maxima"),
+         ("operaciones", "Operaciones"), ("ganadoras", "% ganadoras")],
+        tema,
+        numericas=("retorno", "caida", "operaciones", "ganadoras"),
+    )
+    clasif = resultado.get("clasificacion", {}).get("modelo", {})
+    precision_alerta = clasif.get("precision_en_senal_alerta")
+    st.caption(
+        f"Backtest del {pd.to_datetime(fecha, format='%Y%m%d'):%d/%m/%Y}, periodo de prueba {inicio} a {fin}. Cada decision usa un modelo entrenado solo con fechas "
+        f"anteriores; rebalanceo cada {sup.get('rebalanceo_cada_dias', TARGET_HORIZON_DAYS)} dias con comision de "
+        f"{sup.get('comision_por_lado', 0):.1%} y deslizamiento de {sup.get('deslizamiento_por_lado', 0):.1%} por lado. "
+        + (f"Acierto cuando hubo senal de alerta: {precision_alerta:.0%} (tasa base "
+           f"{resultado.get('clasificacion', {}).get('tasa_base', 0):.0%}). " if precision_alerta is not None else "")
+        + "Un resultado negativo es evidencia de que la senal sola no alcanza para operar: por eso el reporte "
+        "prescriptivo limita la posicion y sugiere stop-loss."
+    )
+    grafico = EVIDENCIAS_DIR / f"backtest_{fecha}.png"
+    if grafico.exists():
+        with st.expander("Ver curva de capital del backtest"):
+            st.image(str(grafico), use_column_width=True)
+
+
+def catalizadores_recientes(filings_df: pd.DataFrame, tema: dict, dias: int = 30) -> None:
+    colores = {"positivo": tema["success"], "negativo": tema["danger"], "neutral": tema["neutral"]}
+    corte = pd.Timestamp.now() - pd.Timedelta(days=dias)
+    recientes = filings_df[filings_df["fecha"] >= corte]
+    if recientes.empty:
+        st.markdown(f'<span style="color:{tema["text_muted"]};">Sin filings relevantes en los ultimos {dias} dias.</span>', unsafe_allow_html=True)
+        return
+    conteo = recientes.groupby(["categoria", "signo"]).size().reset_index(name="n").sort_values(["signo", "n"], ascending=[True, False])
+    chips = " ".join(
+        chip_html(f"{texto_seguro(f.categoria)} · {f.n}", colores.get(f.signo, tema["neutral"])) for f in conteo.itertuples()
+    )
+    st.markdown(chips, unsafe_allow_html=True)
 
 
 def cargar_historial_predicciones(session, ticker_id: int, ohlcv_df: pd.DataFrame) -> pd.DataFrame:
@@ -876,10 +1268,11 @@ def cargar_resumen_mercado(session, modelo) -> pd.DataFrame:
     if not con_features:
         return pd.DataFrame()
 
+    columnas = columnas_del_modelo(modelo)
     filas_features = [
-        {"fecha": features[tid].fecha, **{c: getattr(features[tid], c) for c in FEATURE_COLS}} for tid, _ in con_features
+        {"fecha": features[tid].fecha, **{c: getattr(features[tid], c) for c in COLUMNAS_FEATURES}} for tid, _ in con_features
     ]
-    probabilidades = modelo.predict_proba(pd.DataFrame(filas_features)[FEATURE_COLS])[:, 1]
+    probabilidades = modelo.predict_proba(pd.DataFrame(filas_features)[columnas])[:, 1]
 
     filas = []
     for (tid, symbol), feats, prob in zip(con_features, filas_features, probabilidades):
@@ -892,7 +1285,7 @@ def cargar_resumen_mercado(session, modelo) -> pd.DataFrame:
                 "probabilidad": float(prob),
                 "senal": generar_recomendacion(float(prob), feats)["tipo_senal"],
                 "market_cap": ratio.market_cap if ratio else None,
-                "pe_ratio": ratio.pe_ratio if ratio else None,
+                "pe_ratio": pe_valido(ratio.pe_ratio, ratio.eps) if ratio else None,
                 "pb_ratio": ratio.pb_ratio if ratio else None,
                 "eps": ratio.eps if ratio else None,
             }
@@ -901,6 +1294,16 @@ def cargar_resumen_mercado(session, modelo) -> pd.DataFrame:
 
 
 def main() -> None:
+    # Sesion propia por ejecucion: una compartida queda trabada si un rerun interrumpe un commit.
+    preparar_db()
+    session = get_session()
+    try:
+        renderizar(session)
+    finally:
+        session.close()
+
+
+def renderizar(session) -> None:
     with st.sidebar:
         modo_oscuro = st.toggle("🌙 Modo oscuro", value=False, key="modo_oscuro")
     tema = TEMAS["dark"] if modo_oscuro else TEMAS["light"]
@@ -908,7 +1311,6 @@ def main() -> None:
 
     st.title("Penny Stocks Analytics")
 
-    session = get_db_session()
     tickers = cargar_tickers(session)
 
     if not tickers:
@@ -921,13 +1323,42 @@ def main() -> None:
     ticker_symbol = st.sidebar.selectbox("Ticker", tickers)
     ticker = cargar_ticker_info(session, ticker_symbol)
     st.sidebar.caption(f"{ticker.nombre or '(sin nombre)'} · {ticker.sector or '(sin sector)'}")
+    perfiles = list(PERFILES_RIESGO.keys())
+    perfil = st.sidebar.selectbox(
+        "Perfil de riesgo",
+        perfiles,
+        index=perfiles.index(PERFIL_RIESGO_DEFECTO),
+        help="Cambia el umbral de la senal de alerta y los limites de posicion y perdida del reporte prescriptivo.",
+    )
 
-    rango_label = st.sidebar.radio("Periodo (reporte descriptivo)", list(RANGOS_FECHA.keys()), index=2)
+    st.markdown('<div class="vista-nav"></div>', unsafe_allow_html=True)
+    vista_activa = st.radio("Vista", ["Descriptivo", "Predictivo", "Prescriptivo"], horizontal=True, key="vista", label_visibility="collapsed")
 
-    tab_desc, tab_pred, tab_presc = st.tabs(["Descriptivo", "Predictivo", "Prescriptivo"])
+    # El filtro solo existe en el Descriptivo; se recuerda al salir porque Streamlit olvida los widgets que no se dibujan.
+    opciones_rango = list(RANGOS_FECHA.keys())
+    if vista_activa == "Descriptivo":
+        rango_label = st.sidebar.radio(
+            "Periodo", opciones_rango, index=opciones_rango.index(st.session_state.get("rango_label", "6 meses")), key="rango_widget"
+        )
+        st.session_state["rango_label"] = rango_label
+    else:
+        rango_label = st.session_state.get("rango_label", "6 meses")
+
+    ohlcv_df_full = cargar_ohlcv_df(session, ticker.id).dropna(subset=["close"])
+
+    # La prediccion y la senal se calculan (y se guardan una vez al dia) sea cual sea la vista abierta.
+    modelo, modelo_version = cargar_ultimo_modelo()
+    features = ultimo_feature_row(session, ticker.id)
+    X = prob = recomendacion = None
+    if modelo is not None and features is not None:
+        X = pd.DataFrame([{c: features[c] for c in columnas_del_modelo(modelo)}])
+        prob = float(modelo.predict_proba(X)[0][1])
+        # Se guarda siempre la senal del perfil por defecto (el historial no depende de lo que elija cada visitante).
+        guardar_prediccion_y_recomendacion(session, ticker.id, modelo_version, prob, features, generar_recomendacion(prob, features))
+        recomendacion = generar_recomendacion(prob, features, perfil)
 
     # --- Reporte descriptivo ---
-    with tab_desc:
+    if vista_activa == "Descriptivo":
         st.subheader("Panorama del mercado")
         modelo_radar, _ = cargar_ultimo_modelo()
         if modelo_radar is None:
@@ -942,7 +1373,7 @@ def main() -> None:
                     use_container_width=True,
                 )
                 st.caption(
-                    "Cuadrante superior derecho (verde) = sentimiento positivo y probabilidad de suba "
+                    "Cuadrante superior derecho (verde) = sentimiento positivo y puntaje del modelo "
                     "por encima del umbral. Tamano de burbuja = market cap."
                 )
 
@@ -952,8 +1383,6 @@ def main() -> None:
         st.divider()
         st.subheader(f"Detalle de {ticker_symbol}")
 
-        ohlcv_df_full = cargar_ohlcv_df(session, ticker.id)
-        ohlcv_df_full = ohlcv_df_full.dropna(subset=["close"])
         if ohlcv_df_full.empty:
             st.info("Sin datos de precio para este ticker.")
         else:
@@ -993,24 +1422,25 @@ def main() -> None:
             st.plotly_chart(grafico_sentimiento(sentimiento_df, tema), use_container_width=True)
 
         with st.expander("Que dicen las noticias", expanded=True):
-            textos_df = cargar_textos_df(session, ticker.id)
+            textos_df = unir_filings(cargar_textos_df(session, ticker.id), cargar_filings_df(session, ticker.id))
             if textos_df.empty:
                 st.info("Sin textos analizados todavia para este ticker.")
             else:
                 col_fuente, col_sent = st.columns(2)
-                fuente_sel = col_fuente.radio("Fuente", ["Todas", "Noticias", "StockTwits"], horizontal=True)
+                fuente_sel = col_fuente.radio("Fuente", ["Todas", "Noticias", "StockTwits", "SEC"], horizontal=True)
                 sent_sel = col_sent.radio("Sentimiento", ["Todos", "Positivo", "Negativo", "Neutral"], horizontal=True)
-                vista = filtrar_por_rango(textos_df, RANGOS_FECHA[rango_label])
+                textos_vista = filtrar_por_rango(textos_df, RANGOS_FECHA[rango_label])
                 if fuente_sel != "Todas":
-                    vista = vista[vista["fuente"] == {"Noticias": "noticia", "StockTwits": "stocktwits"}[fuente_sel]]
+                    fuente_clave = {"Noticias": "noticia", "StockTwits": "stocktwits", "SEC": "sec"}[fuente_sel]
+                    textos_vista = textos_vista[textos_vista["fuente"] == fuente_clave]
                 if sent_sel != "Todos":
-                    vista = vista[vista["etiqueta"] == sent_sel.lower()]
-                if vista.empty:
+                    textos_vista = textos_vista[textos_vista["etiqueta"] == sent_sel.lower()]
+                if textos_vista.empty:
                     st.info("Ningun texto coincide con los filtros.")
                 else:
-                    tabla_textos(vista.head(60), tema, ticker_symbol)
-                    if len(vista) > 60:
-                        st.caption(f"Mostrando los 60 mas recientes de {len(vista)}.")
+                    tabla_textos(textos_vista.head(60), tema, ticker_symbol)
+                    if len(textos_vista) > 60:
+                        st.caption(f"Mostrando los 60 mas recientes de {len(textos_vista)}.")
 
         ratios_df = cargar_ratios_df(session, ticker.id)
         if not ratios_df.empty:
@@ -1041,85 +1471,131 @@ def main() -> None:
                 )
 
     # --- Reporte predictivo ---
-    prob = None
-    features = None
-    modelo_version = None
-    with tab_pred:
+    if vista_activa == "Predictivo":
         st.subheader(f"Prediccion XGBoost para {ticker_symbol}")
-
-        modelo, modelo_version = cargar_ultimo_modelo()
-        features = ultimo_feature_row(session, ticker.id)
 
         if modelo is None:
             st.warning("No hay ningun modelo entrenado todavia. Corre `train_xgboost.py` primero.")
         elif features is None:
             st.warning("No hay features calculadas para este ticker. Corre `feature_engineering.py` primero.")
         else:
-            X = pd.DataFrame([{c: features[c] for c in FEATURE_COLS}])
-            prob = float(modelo.predict_proba(X)[0][1])
-
-            if not ohlcv_df_full.empty:
-                st.markdown("**Zona objetivo**")
-                st.plotly_chart(grafico_zona_objetivo(ohlcv_df_full, prob, tema), use_container_width=True)
-
-            col1, col2 = st.columns(2)
-            with col1:
+            conf = cargar_confiabilidad_modelo(session)
+            col_gauge, col_contrib = st.columns([1, 1.3])
+            with col_gauge:
+                st.markdown("**Puntaje del modelo**")
                 st.plotly_chart(grafico_gauge(prob, tema), use_container_width=True)
-                st.caption(f"Modelo: {modelo_version} · features del {features['fecha']}")
-            with col2:
-                st.markdown("**Feature importance (global del modelo)**")
-                st.plotly_chart(grafico_feature_importance(modelo, tema), use_container_width=True)
+                tasa_base = f" · Tasa base: {conf['tasa_base']:.0%}" if conf else ""
+                st.caption(f"Modelo {modelo_version} · features del {features['fecha']}{tasa_base}")
+            with col_contrib:
+                st.markdown("**Por que este puntaje**")
+                st.plotly_chart(grafico_contribuciones(contribuciones_prediccion(modelo, X), tema), use_container_width=True)
 
-            st.markdown("**Features usadas para esta prediccion**")
-            fc1, fc2, fc3, fc4 = st.columns(4)
-            fc1.metric("RSI", f"{features['rsi']:.1f}")
-            fc2.metric("Media movil", f"${features['media_movil']:.2f}")
-            fc3.metric("Volumen relativo", f"{features['volumen_relativo']:.2f}x")
-            fc4.metric("Sentimiento agregado", f"{features['sentimiento_agregado']:+.2f}")
+            st.divider()
+            st.markdown("**Catalizadores recientes (SEC, ultimos 30 dias)**")
+            catalizadores_recientes(cargar_filings_df(session, ticker.id), tema)
+
+            st.divider()
+            st.markdown("**Horizonte de precio**")
+            cono = calcular_cono_volatilidad(ohlcv_df_full) if not ohlcv_df_full.empty else None
+            if cono is None:
+                st.info("Historial de precios insuficiente para estimar el horizonte.")
+            else:
+                tab_3d, tab_mes = st.tabs([f"{TARGET_HORIZON_DAYS} dias", "1 mes"])
+                with tab_3d:
+                    st.plotly_chart(grafico_zona_objetivo(ohlcv_df_full, prob, tema), use_container_width=True)
+                with tab_mes:
+                    st.plotly_chart(grafico_cono_mes(ohlcv_df_full, cono, tema), use_container_width=True)
+                    k1, k2, k3 = st.columns(3)
+                    k1.metric("Rango 80% a 1 mes", f"${cono['p10'][-1]:.2f} - ${cono['p90'][-1]:.2f}")
+                    k2.metric("Rango 50% a 1 mes", f"${cono['p25'][-1]:.2f} - ${cono['p75'][-1]:.2f}")
+                    k3.metric("Volatilidad diaria", f"{cono['sigma']:.1%}")
+
+            st.divider()
+            st.markdown("**Confiabilidad del modelo**")
+            if not conf:
+                st.info("Datos insuficientes para evaluar el modelo.")
+            else:
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("AUC", f"{conf['auc']:.2f}", help="0.50 = azar, 1.00 = perfecto. Promedio de 4 tramos consecutivos.")
+                m2.metric("Tramos sobre el azar", conf["folds_sobre_azar"], help="En cuantos de los 4 tramos de prueba el AUC supera 0.50.")
+                m3.metric("Tasa base", f"{conf['tasa_base']:.0%}", help="Porcentaje de dias con suba real: lo que acertaria un modelo al azar.")
+                m4.metric(
+                    "Mejora en el top 10%",
+                    f"{conf['lift_top10']:.1f}x",
+                    help="Acierto del 10% de dias con mayor probabilidad, dividido entre la tasa base; 1.0x = no mejora al azar.",
+                )
+                st.caption(
+                    f"Evaluado en 4 tramos consecutivos del final de la historia ({conf['n']:,} observaciones); "
+                    "cada tramo se predice con un modelo entrenado solo con fechas anteriores."
+                )
+                if conf["auc"] < AUC_AVISO:
+                    st.warning(
+                        f"El AUC actual ({conf['auc']:.2f}) esta por debajo de {AUC_AVISO:.2f}: el modelo no ordena mucho "
+                        "mejor que el azar (0.50). Toma el puntaje como una pista mas, no como senal de compra."
+                    )
+
+            monitoreo = cargar_monitoreo_modelo()
+            if len(monitoreo) >= 2:
+                st.markdown("**Seguimiento diario del modelo**")
+                st.plotly_chart(grafico_monitoreo_auc(monitoreo, tema), use_container_width=True)
+                ultimo = monitoreo.iloc[-1]
+                st.caption(f"Ultimo reentrenamiento ({ultimo['fecha']:%d/%m/%Y}): {ultimo['motivo']}.")
+
+            st.divider()
+            st.markdown("**Backtesting: que hubiera pasado siguiendo las senales**")
+            seccion_backtest(tema)
 
     # --- Reporte prescriptivo ---
-    with tab_presc:
+    if vista_activa == "Prescriptivo":
         st.subheader(f"Recomendacion para {ticker_symbol}")
 
-        if prob is None or features is None:
-            st.info("Necesita una prediccion valida (pestana Predictivo) para generar una recomendacion.")
+        if prob is None:
+            st.info("Necesita una prediccion valida (modelo y features) para generar una recomendacion.")
         else:
-            recomendacion = generar_recomendacion(prob, features)
-            guardar_prediccion_y_recomendacion(session, ticker.id, modelo_version, prob, features, recomendacion)
-
-            color = tema[COLOR_SENAL_KEY[recomendacion["tipo_senal"]]]
-            st.markdown(
-                f"""
-                <div style="
-                    background-color:{color}1a;
-                    border-left: 6px solid {color};
-                    border-radius: 8px;
-                    padding: 1.25rem 1.5rem;
-                ">
-                    <div style="font-size:1.4rem; font-weight:700; color:{color}; font-family:{FONT_DISPLAY};">
-                        {recomendacion['tipo_senal'].upper()}
-                    </div>
-                    <div style="margin-top:0.5rem; font-size:1rem; color:{tema['text']};">
-                        {recomendacion['justificacion']}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            conf = cargar_confiabilidad_modelo(session)
+            resumen_df = cargar_resumen_mercado(session, modelo)
+            puesto = (
+                int((resumen_df["probabilidad"] > prob).sum()) + 1 if not resumen_df.empty else None
             )
-            if recomendacion["tipo_senal"] == "sin senal":
-                faltante = UMBRAL_SENAL_MONITOREAR - prob
-                st.caption(f"A {faltante:.1%} de pasar a **monitorear** (umbral: {UMBRAL_SENAL_MONITOREAR:.0%}).")
-            elif recomendacion["tipo_senal"] == "monitorear":
-                faltante = UMBRAL_SENAL_ALERTA - prob
-                st.caption(f"A {faltante:.1%} de pasar a **señal de alerta** (umbral: {UMBRAL_SENAL_ALERTA:.0%}).")
-            else:
-                st.caption("Ya esta en el nivel de señal mas alto.")
+            cono = calcular_cono_volatilidad(ohlcv_df_full) if not ohlcv_df_full.empty else None
+
+            col_senal, col_a, col_b = st.columns([1.35, 1, 1])
+            col_senal.markdown(bloque_senal(recomendacion, prob, tema), unsafe_allow_html=True)
+            col_a.metric("Tasa base", f"{conf['tasa_base']:.0%}" if conf else "N/D")
+            col_a.metric("Puesto entre tickers", f"{puesto} de {len(resumen_df)}" if puesto else "N/D")
+            col_b.metric("Rango 80% a 1 mes", f"${cono['p10'][-1]:.2f} - ${cono['p90'][-1]:.2f}" if cono else "N/D")
+            col_b.metric("Volatilidad diaria", f"{cono['sigma']:.1%}" if cono else "N/D")
+
+            st.markdown(f"**Limites de riesgo (perfil {recomendacion['perfil']}, regla fija)**")
+            col_p, col_s, col_c = st.columns(3)
+            col_p.metric(
+                "Posicion maxima sugerida",
+                f"{recomendacion['posicion_max']:.0%} del capital" if recomendacion["posicion_max"] else "No entrar",
+            )
+            ultimo_cierre = float(ohlcv_df_full["close"].iloc[-1]) if not ohlcv_df_full.empty else None
+            col_s.metric(
+                "Salida si cae (stop-loss)",
+                f"-{recomendacion['perdida_max']:.0%}" + (f" (${ultimo_cierre * (1 - recomendacion['perdida_max']):.2f})" if ultimo_cierre else ""),
+            )
+            col_c.metric("Freno por volatilidad extrema", "Activado" if recomendacion["freno_volatilidad"] else "No")
+            st.caption(
+                "Los limites salen de reglas fijas por perfil (src/config.py, PERFILES_RIESGO), no del modelo ni del LLM. "
+                "Son una guia educativa: no se ejecuta ninguna operacion."
+            )
+
+        st.divider()
+        st.markdown("**Asesor IA**")
+        rec_ia = cargar_recomendacion_ia(session, ticker.id)
+        if rec_ia is None:
+            st.info("Sin recomendacion IA todavia para este ticker: se genera una vez al dia.")
+        else:
+            bloque_asesor_ia(rec_ia, tema)
 
         st.divider()
         st.markdown("**Historial de predicciones para este ticker**")
         historial_df = cargar_historial_predicciones(session, ticker.id, ohlcv_df_full)
         if historial_df.empty:
-            st.info("Sin historial todavia — cada vez que abres la pestaña Predictivo se guarda una fila nueva.")
+            st.info("Sin historial todavia: el pipeline diario guarda una fila por dia (tambien al abrir el dashboard).")
         else:
             resueltas = historial_df[historial_df["resultado"] != "pendiente"]
             if not resueltas.empty:
@@ -1128,13 +1604,11 @@ def main() -> None:
                     f"Acierto historico: {tasa_acierto:.0%} sobre {len(resueltas)} predicciones ya resueltas "
                     f"(de {len(historial_df)} totales; el resto sigue dentro del horizonte de {TARGET_HORIZON_DAYS} dias)."
                 )
-            historial_fmt = historial_df.copy()
-            historial_fmt["fecha"] = historial_fmt["fecha"].astype(str)
             renderizar_tabla_html(
-                historial_fmt,
+                historial_con_etiquetas(historial_df, tema),
                 [
                     ("fecha", "Fecha"),
-                    ("probabilidad", "Probabilidad"),
+                    ("probabilidad", "Puntaje"),
                     ("prediccion", "Prediccion"),
                     ("senal", "Señal"),
                     ("cambio_real", "Cambio real"),
@@ -1145,27 +1619,16 @@ def main() -> None:
             )
 
         st.divider()
-        st.markdown("**Señales de todos los tickers hoy**")
+        st.markdown("**Ranking de puntaje de todos los tickers**")
         if modelo is None:
             st.info("Sin modelo entrenado, no se puede comparar.")
         else:
-            comparativa_senales_df = cargar_resumen_mercado(session, modelo).sort_values("probabilidad", ascending=False)
-            if comparativa_senales_df.empty:
+            ranking_df = cargar_resumen_mercado(session, modelo)
+            if ranking_df.empty:
                 st.info("Sin features calculadas para comparar tickers.")
             else:
-                badges = ""
-                for _, fila in comparativa_senales_df.iterrows():
-                    color = tema[COLOR_SENAL_KEY[fila["senal"]]]
-                    borde = f"2px solid {tema['text']}" if fila["symbol"] == ticker_symbol else "none"
-                    badges += (
-                        f'<div style="display:inline-block; margin:4px; padding:8px 14px; '
-                        f'border-radius:8px; background-color:{color}1a; border:{borde}; '
-                        f'color:{tema["text"]};">'
-                        f'<b>{fila["symbol"]}</b> · {fila["probabilidad"]:.0%} · '
-                        f'<span style="color:{color};">{fila["senal"]}</span></div>'
-                    )
-                st.markdown(badges, unsafe_allow_html=True)
-
+                tasa_base_ranking = cargar_confiabilidad_modelo(session).get("tasa_base")
+                st.plotly_chart(grafico_ranking_senales(ranking_df, tema, ticker_symbol, tasa_base_ranking), use_container_width=True)
 
 if __name__ == "__main__":
     main()
