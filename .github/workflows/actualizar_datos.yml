@@ -13,6 +13,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: actualizar-datos
+  cancel-in-progress: false
+
 jobs:
   actualizar:
     runs-on: ubuntu-latest
@@ -41,6 +45,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python -m src.ingestion.ingest_text_data
 
+      - name: Catalizadores (filings de la SEC)
+        continue-on-error: true
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.ingestion.ingest_sec_filings
+
       - name: Limpieza y normalizacion
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -61,11 +72,25 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python -m src.models.train_xgboost
 
+      - name: Registrar predicciones del dia
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.reports.predicciones_diarias
+
+      - name: Asesor IA (recomendaciones con Gemini)
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          MAX_LLAMADAS_LLM_DIA: ${{ vars.MAX_LLAMADAS_LLM_DIA }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -m src.reports.asesor_ia
+
       - name: Publicar modelo actualizado en git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add models/xgboost_latest.json models/xgboost_latest.version.txt
+          git add models/xgboost_latest.json models/xgboost_latest.version.txt models/monitoreo_modelo.csv
           if git diff --cached --quiet; then
             echo "Sin cambios en el modelo, no se hace commit."
           else
